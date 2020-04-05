@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29609.76
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Ringo.Api", "Ringo.Api\Ringo.Api.csproj", "{6F68648B-1725-4426-9CD7-C17911145010}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ringo.Api.Tests", "Ringo.Api.Tests\Ringo.Api.Tests.csproj", "{7C58B634-A9EE-4F13-8E26-B7A71445D5FA}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6F68648B-1725-4426-9CD7-C17911145010}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6F68648B-1725-4426-9CD7-C17911145010}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6F68648B-1725-4426-9CD7-C17911145010}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6F68648B-1725-4426-9CD7-C17911145010}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7C58B634-A9EE-4F13-8E26-B7A71445D5FA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7C58B634-A9EE-4F13-8E26-B7A71445D5FA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7C58B634-A9EE-4F13-8E26-B7A71445D5FA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7C58B634-A9EE-4F13-8E26-B7A71445D5FA}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {A1BA79D9-6179-4B60-B66A-B322BCDBCD59}
+	EndGlobalSection
+EndGlobal
