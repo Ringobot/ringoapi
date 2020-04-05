@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Ringo.Api.Services
+namespace Ringo.Api.Models
 {
     public class Offset
     {

@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+﻿using Ringo.Api.Models;
 using System.Threading.Tasks;
 
 namespace Ringo.Api.Services

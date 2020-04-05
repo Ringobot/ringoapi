@@ -1,4 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
+using Ringo.Api.Data;
+using Ringo.Api.Models;
 using Scale;
 using SpotifyApi.NetCore;
 using SpotifyApi.NetCore.Models;
@@ -10,22 +12,23 @@ namespace Ringo.Api.Services
 {
     public class StationService : IStationService
     {
-        private readonly IData<Station> _data;
-
         private static readonly string[] SupportedSpotifyItemTypes = new[] { "playlist" };
+        
         private readonly ILogger<StationService> _logger;
+        private readonly ICosmosData<Station> _data;
         private readonly IPlayerApi _player;
 
 
-        public StationService(ILogger<StationService> logger, IPlayerApi playerApi)
+        public StationService(ILogger<StationService> logger, IPlayerApi playerApi, ICosmosData<Station> stationData)
         {
             _logger = logger;
             _player = playerApi;
+            _data = stationData;
         }
 
-        public async Task<StationServiceResult> Start(User user, string stationId)
+        public async Task<StationServiceResult> Start(Models.User user, string stationId)
         {
-            var station = await _data.Get(stationId);
+            var station = await _data.Get(stationId, stationId);
             var np = await GetNowPlaying(user);
 
             if (!np.IsPlaying) return new StationServiceResult { Status = 201, Message = "Waiting for active device" };
@@ -33,9 +36,9 @@ namespace Ringo.Api.Services
             return new StationServiceResult { Status = 200, Message = "Playing" };
         }
 
-        public async Task<StationServiceResult> Join(User user, string stationId)
+        public async Task<StationServiceResult> Join(Models.User user, string stationId)
         {
-            var station = await _data.Get(stationId);
+            var station = await _data.Get(stationId, stationId);
 
             var ownerNP = await GetNowPlaying(station.Owner);
 
@@ -51,12 +54,12 @@ namespace Ringo.Api.Services
             if (!SupportedSpotifyItemTypes.Contains(station.SpotifyContextType))
                 throw new NotSupportedException($"\"{station.SpotifyContextType}\" is not a supported Spotify context type");
 
-            await TurnOffShuffleRepeat(user.Token, np1);
+            await TurnOffShuffleRepeat(user, np1);
 
             try
             {
                 // mute joining player
-                await MuteUnmute(user.Token, np1, true);
+                await MuteUnmute(user, np1, true);
 
                 // TWO
                 await PlayFromOffset(user, station, ownerNP);
@@ -76,13 +79,13 @@ namespace Ringo.Api.Services
             finally
             {
                 // unmute joining player
-                await MuteUnmute(user.Token, np1, false);
+                await MuteUnmute(user, np1, false);
             }
 
             return new StationServiceResult { Status = 200, Message = "Playing" };
         }
 
-        private async Task PlayFromOffset(User user, Station station, NowPlaying ownerNP, TimeSpan error = default)
+        private async Task PlayFromOffset(Models.User user, Station station, NowPlaying ownerNP, TimeSpan error = default)
         {
             if (error.Equals(default)) error = TimeSpan.Zero;
 
@@ -96,7 +99,7 @@ namespace Ringo.Api.Services
                         () => _player.PlayAlbumOffset(
                             ownerNP.Context.Uri,
                             ownerNP.Track.Id,
-                            accessToken: user.Token,
+                            accessToken: user.Tokens.AccessToken,
                             positionMs: positionMs),
                             logger: _logger);
                     break;
@@ -106,7 +109,7 @@ namespace Ringo.Api.Services
                         () => _player.PlayPlaylistOffset(
                             ownerNP.Context.Uri,
                             ownerNP.Track.Id,
-                            accessToken: user.Token,
+                            accessToken: user.Tokens.AccessToken,
                             positionMs: positionMs),
                         logger: _logger);
                     break;
@@ -121,7 +124,7 @@ namespace Ringo.Api.Services
             return np2.Offset.PositionNow(now).Subtract(np1.Offset.PositionNow(now));
         }
 
-        private async Task<NowPlaying> GetNowPlaying(User user)
+        private async Task<NowPlaying> GetNowPlaying(Models.User user)
         {
             //var info = await RetryHelper.RetryAsync(
             //        () => _player.GetCurrentPlaybackInfo(user.Token),
@@ -129,7 +132,7 @@ namespace Ringo.Api.Services
 
             // DateTime has enough fidelity for these timings
             var start = DateTime.UtcNow;
-            CurrentPlaybackContext info = await _player.GetCurrentPlaybackInfo(user.Token);
+            CurrentPlaybackContext info = await _player.GetCurrentPlaybackInfo(user.Tokens.AccessToken);
             var finish = DateTime.UtcNow;
             var rtt = finish.Subtract(start);
 
@@ -161,108 +164,25 @@ namespace Ringo.Api.Services
             return np;
         }
 
-        //private async Task<bool> JoinPlaylist(
-        //    string query,
-        //    string token,
-        //    string stationToken,
-        //    Station station,
-        //    CancellationToken cancellationToken)
-        //{
-        //    // is the station playing?
-        //    // default the position to what was returned by get info
-        //    var info = await GetUserNowPlaying(stationToken);
-
-        //    if (
-        //        info == null
-        //        || !info.IsPlaying
-        //        || info.Context == null
-        //        || SpotifyUriHelper.NormalizeUri(info.Context.Uri) != SpotifyUriHelper.NormalizeUri(station.SpotifyUri))
-        //    {
-        //        _logger.LogInformation($"JoinPlaylist: No longer playing station {station}");
-        //        _logger.LogDebug($"JoinPlaylist: station.SpotifyUri = {station.SpotifyUri}");
-        //        _logger.LogDebug($"JoinPlaylist: info = {JsonConvert.SerializeObject(info)}");
-        //        return false;
-        //    }
-
-        //    (string itemId, (long positionMs, DateTime atUtc) position) itemPosition = (info.Item?.Id, (info.ProgressMs ?? 0, DateTime.UtcNow));
-
-
-        //    if (!SupportedSpotifyItemTypes.Contains(station.SpotifyContextType))
-        //        throw new NotSupportedException($"\"{station.SpotifyContextType}\" is not a supported Spotify context type");
-
-        //    var offset = await GetOffset(stationToken);
-
-        //    if (offset.success)
-        //    {
-        //        // reset position to Station position
-        //        itemPosition.itemId = offset.itemId;
-        //        itemPosition.position = offset.position;
-        //    }
-
-        //    await TurnOffShuffleRepeat(token, info);
-
-        //    try
-        //    {
-        //        // mute joining player
-        //        await Volume(token, 0, info.Device.Id);
-
-        //        // play from offset
-        //        switch (station.SpotifyContextType)
-        //        {
-        //            case "album":
-        //                await RetryHelper.RetryAsync(
-        //                    () => _player.PlayAlbumOffset(
-        //                        info.Context.Uri,
-        //                        info.Item.Id,
-        //                        accessToken: token,
-        //                        positionMs: PositionMsNow(itemPosition.position).positionMs),
-        //                    logger: _logger,
-        //                    cancellationToken: cancellationToken);
-        //                break;
-
-        //            case "playlist":
-        //                await RetryHelper.RetryAsync(
-        //                    () => _player.PlayPlaylistOffset(
-        //                        info.Context.Uri,
-        //                        info.Item.Id,
-        //                        accessToken: token,
-        //                        positionMs: PositionMsNow(itemPosition.position).positionMs),
-        //                    logger: _logger,
-        //                    cancellationToken: cancellationToken);
-        //                break;
-        //        }
-
-        //        if (offset.success) await SyncJoiningPlayer(stationToken: stationToken, joiningToken: token);
-
-        //    }
-        //    finally
-        //    {
-        //        // unmute joining player
-        //        await Volume(token, (int)info.Device.VolumePercent, info.Device.Id);
-        //    }
-
-        //    return true;
-        //}
-
-        private async Task TurnOffShuffleRepeat(string token, NowPlaying np)
+        private async Task TurnOffShuffleRepeat(Models.User user, NowPlaying np)
         {
             // turn off shuffle and repeat
             if (np.ShuffleOn)
             {
-                await _player.Shuffle(false, accessToken: token, deviceId: np.Device.Id);
+                await _player.Shuffle(false, accessToken: user.Tokens.AccessToken, deviceId: np.Device.Id);
             }
 
             if (np.RepeatOn)
             {
-                await _player.Repeat(RepeatStates.Off, accessToken: token, deviceId: np.Device.Id);
+                await _player.Repeat(RepeatStates.Off, accessToken: user.Tokens.AccessToken, deviceId: np.Device.Id);
             }
         }
 
-        private async Task MuteUnmute(string token, NowPlaying np, bool mute)
+        private async Task MuteUnmute(Models.User user, NowPlaying np, bool mute)
         {
             try
             {
-                await _player.Volume(mute ? 0 : 100, accessToken: token, deviceId: np.Device.Id);
+                await _player.Volume(mute ? 0 : 100, accessToken: user.Tokens.AccessToken, deviceId: np.Device.Id);
             }
             catch (Exception ex)
             {
@@ -270,148 +190,5 @@ namespace Ringo.Api.Services
                 _logger.LogError(ex, ex.Message);
             }
         }
-
-        ///// <summary>
-        ///// Given a positionMs at a point in time in the past, returns the positionMs now (or at a given nowUtc)
-        ///// </summary>
-
-        ///// <summary>
-        ///// Given a position at server time in the past, returns the position it will be by the time 
-        ///// a request sent now reaches the server.
-        ///// </summary>
-        ///// <param name="np"></param>
-        ///// <returns></returns>
-        //private static long PositionNowMs(NowPlaying np)
-        //    //(long positionMs, DateTime atUtc) position,
-        //    //DateTimeOffset? nowUtc = null)
-        //{
-        //    //TODO: CHECK THE MATHS
-        //    var serverNow = DateTimeOffset.UtcNow.Add(np.Offset.ClientServerLatency);
-        //    var offset = np.Offset.ServerPosition;
-
-        //    // if server fetch time was in the past, add how much time has past
-        //    if (serverNow > np.Offset.ServerFetchTime) offset = offset.Add(serverNow.Subtract(np.Offset.ServerFetchTime));
-
-        //    // add an adjustment for client-server latency
-        //    //offset = offset.Add(np.Offset.ClientServerLatency);
-
-        //    return Convert.ToInt64(offset);
-        //    //return (position.positionMs + Convert.ToInt64(now.Subtract(position.atUtc).TotalMilliseconds), now);
-        //}
-
-        ///// <summary>
-        ///// Returns the difference in milliseconds between two (position, dateTime) tuples.
-        ///// </summary>
-        //private static long PositionDiff((long positionMs, DateTime atUtc) position1, (long positionMs, DateTime atUtc) position2)
-        //{
-        //    DateTime epoch1 = position1.atUtc.AddMilliseconds(-position1.positionMs);
-        //    DateTime epoch2 = position2.atUtc.AddMilliseconds(-position2.positionMs);
-        //    return Convert.ToInt64(epoch2.Subtract(epoch1).TotalMilliseconds);
-        //}
-
-        //private async Task SyncJoiningPlayer(string stationToken, string joiningToken)
-        //{
-        //    // TODO:
-        //    // Christian algorithm
-        //    //  T + RTT/2
-        //    //  Time + RoundTripTime / 2
-        //    var joinerNewPositionMs = new Func<(long, DateTime), (long, DateTime), (long, DateTime)>((
-        //        (long position, DateTime atUtc) stationPosition,
-        //        (long positionMs, DateTime atUtc) joinerPosition) =>
-        //    {
-        //        // error is positive if joiner lags station
-        //        long error = PositionDiff(stationPosition, joinerPosition);
-
-        //        _logger.LogDebug(
-        //            $"SyncJoiningPlayer: joinerNewPositionMs: Token = {BotHelper.TokenForLogging(joiningToken)}, error = {error}");
-
-        //        // shift position of joiner relative to time
-        //        return (joinerPosition.positionMs + error, joinerPosition.atUtc);
-        //    });
-
-        //    var syncJoiner = new Func<(long, DateTime), Task<(bool, long, (long, DateTime))>>(async ((long positionMs, DateTime atUtc) lastPosition) =>
-        //    {
-        //        (bool success, string itemId, (long positionMs, DateTime currentUtc) position) current = await GetOffset(joiningToken);
-        //        if (!current.success) return (false, 0, (0, DateTime.MinValue));
-
-        //        (long positionMs, DateTime atUtc) adjustedPosition = joinerNewPositionMs(lastPosition, current.position);
-        //        (long positionMs, DateTime atUtc) newPosition = PositionMsNow(adjustedPosition);
-        //        if (newPosition.positionMs < 0) return (false, 0, (0, DateTime.MinValue));
-
-        //        // play @ Station_Playhead_Now + error
-        //        await _player.Seek(newPosition.positionMs, accessToken: joiningToken);
-
-        //        long error = PositionDiff(current.position, newPosition);
-
-        //        _logger.LogDebug(
-        //            $"SyncJoiningPlayer: syncJoiner: Token = {BotHelper.TokenForLogging(joiningToken)}, Joiner was synced from {current.position} to {newPosition} (error = {error} ms) based on station position of {lastPosition}");
-
-        //        return (true, error, newPosition);
-        //    });
-
-        //    //const long errorAdjustmentThresholdMs = 100;
-
-        //    var stationOffset = await GetOffset(stationToken);
-
-        //    (bool success, long error, (long positionMs, DateTime atUtc) newPosition) attempt1
-        //        = await syncJoiner(stationOffset.position);
-
-        //    // if attempt as unsuccessful, or the adjusted error was less than errorAdjustmentThresholdMs, return
-        //    //if (!attempt1.success || Math.Abs(attempt1.error) <= errorAdjustmentThresholdMs) return;
-
-        //    // do it again
-        //    stationOffset = await GetOffset(stationToken);
-        //    await syncJoiner(stationOffset.position);
-        //}
-
-        ///// <summary>
-        ///// Gets the current playing item and playhead position at a point in time, for a given User.
-        ///// </summary>
-        //protected internal async Task<(bool success, string itemId, (long progressMs, DateTime atUtc) position)> 
-        //    GetOffset(User user)
-        //{
-        //    var token = user.Token;
-
-        //    // Christian algorithm
-        //    //  T + RTT/2
-        //    //  Time + RoundTripTime / 2
-
-        //    var results = new List<(string itemId, long progressMs, long roundtripMs, DateTime utc)>();
-
-        //    for (int i = 0; i < 3; i++)
-        //    {
-        //        try
-        //        {
-        //            var rt = await GetRoundTrip(token);
-        //            results.Add(rt);
-        //            _logger.LogDebug($"GetOffset: Token = {BotHelper.TokenForLogging(token)}, GetRoundTrip = {rt}");
-        //        }
-        //        catch (Exception ex)
-        //        {
-        //            _logger.LogError(ex, $"GetOffset: Try {i + 1} of 3 failed");
-        //        }
-        //    }
-
-        //    if (results.Any())
-        //    {
-        //        (string itemId, long progressMs, long roundtripMs, DateTime utc) = results.OrderBy(r => r.roundtripMs).First();
-        //        var result = (true, itemId, (progressMs + (roundtripMs / 2), utc));
-        //        _logger.LogDebug($"GetOffset: {BotHelper.TokenForLogging(token)}, result = {result}");
-        //        return result;
-        //    }
-
-        //    return (false, null, (0, DateTime.MinValue));
-        //}
-
-        //protected internal virtual async Task<(string itemId, long progressMs, long roundtripMs, DateTime utc)> 
-        //    GetRoundTrip(string token)
-        //{
-        //    // DateTime has enough fidelity for these timings
-        //    var start = DateTime.UtcNow;
-        //    CurrentPlaybackContext info1 = await _player.GetCurrentPlaybackInfo(token);
-        //    var finish = DateTime.UtcNow;
-        //    double rtt = finish.Subtract(start).TotalMilliseconds;
-        //    return (info1.Item.Id, info1.ProgressMs ?? 0, Convert.ToInt64(rtt), finish);
-        //}
     }
 }
