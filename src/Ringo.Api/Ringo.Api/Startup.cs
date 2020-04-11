@@ -1,15 +1,15 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.HttpsPolicy;
-using Microsoft.AspNetCore.Mvc;
+using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using Ringo.Api.Data;
+using Ringo.Api.Models;
+using Ringo.Api.Services;
+using SpotifyApi.NetCore;
+using SpotifyApi.NetCore.Authorization;
+using System.Net.Http;
 
 namespace Ringo.Api
 {
@@ -26,6 +26,16 @@ namespace Ringo.Api
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers();
+            services.AddApplicationInsightsTelemetry();
+
+            services.AddSingleton<IUserService, UserService>();
+            services.AddSingleton<IUserAccountsService, UserAccountsService>();
+            services.AddSingleton<IUserStateService, UserStateService>();
+            services.AddSingleton<ICosmosData<Models.User>, CosmosData<Models.User>>();
+            services.AddSingleton<ICosmosData<UserState>, CosmosData<UserState>>();
+            services.AddSingleton<ICosmosData<Station>, CosmosData<Station>>();
+            services.AddSingleton<IPlayerApi>(new PlayerApi(new HttpClient()));
+            services.AddSingleton(new CosmosClient(Configuration["CosmosConnectionString"]));
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

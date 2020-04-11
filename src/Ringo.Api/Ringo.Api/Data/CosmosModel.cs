@@ -7,7 +7,7 @@ namespace Ringo.Api.Data
         [JsonProperty("id")]
         public string Id { get; set; }
 
-        [JsonProperty("pk")]
+        [JsonProperty("PartitionKey")]
         public string PK { get; set; }
 
         [JsonProperty("_etag")]

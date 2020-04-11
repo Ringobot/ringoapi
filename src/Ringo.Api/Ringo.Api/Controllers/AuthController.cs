@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace Ringo.Api.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("[controller]")]
     [ApiController]
     public class AuthController : ControllerBase
     {
@@ -29,7 +29,7 @@ namespace Ringo.Api.Controllers
         }
 
         [HttpPost("[action]")]
-        [Route("api/auth/authorize")]
+        [Route("auth/authorize")]
         public async Task<Models.AuthorizationResult> Authorize()
         {
             string userId = GetUserId();
@@ -39,7 +39,7 @@ namespace Ringo.Api.Controllers
             if (user == null) await _userService.CreateUser(userId);
 
             // create a state value and persist it until the callback
-            string state = _userStateService.NewState(userId);
+            string state = await _userStateService.NewState(userId);
 
             // generate an Authorization URL for the read and modify playback scopes
             string url = _userAccounts.AuthorizeUrl(state, new[] { "user-read-playback-state", "user-modify-playback-state" });
@@ -54,12 +54,23 @@ namespace Ringo.Api.Controllers
 
         /// Authorization callback from Spotify
         [HttpGet("[action]")]
-        [Route("api/spotify/authorize")]
+        [Route("auth/authorize")]
         public async Task<ContentResult> Authorize(
-            [FromQuery(Name = "state")] string state,
+            [FromQuery(Name = "state")] string state = null,
             [FromQuery(Name = "code")] string code = null,
             [FromQuery(Name = "error")] string error = null)
         {
+            if (string.IsNullOrEmpty(state))
+            {
+                return new ContentResult
+                {
+                    Content = "<form method=\"post\"><input type=\"submit\" value=\"Authorize\" /></form>",
+                    ContentType = "text/html",
+                    StatusCode = 200
+                };
+            }
+
+
             string userId = GetUserId();
 
             // if Spotify returned an error, throw it
@@ -77,7 +88,7 @@ namespace Ringo.Api.Controllers
             {
                 ContentType = "text/html",
                 StatusCode = (int)HttpStatusCode.OK,
-                Content = $"<html><body><script>window.opener.postMessage(true, \"*\");window.close()</script>Spotify Authorization successful. You can close this window now</body></html>"
+                Content = $"<html><body><script>window.opener.postMessage(true, \"*\");window.close()</script><p>Spotify Authorization successful. You can close this window now.</p><p>UserId = {userId}.</p><textarea>{tokens.AccessToken}</textarea></body></html>"
             };
         }
 

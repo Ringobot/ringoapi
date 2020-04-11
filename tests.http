@@ -1,0 +1,10 @@
+POST https://localhost:44349/auth/authorize
+
+###
+
+GET https://localhost:44349/health
+
+
+### 
+GET https://localhost:44349/auth/authorize?code=AQCefISDgcwlgcXvUBpXQfH-K-wHYDE1lUTMiaofaPwg8pLHlf4B7-BNsaG7xAsZbrzwxXw1wpPavcrhvQKuC4v-l1jFMfq9r0hZYSnw9Gs2_NVrRaXW9ruYjEGUPYEmX8rVRjxYPgyjGZstQ4AKV958ICLA8qQL1mHaNUiMEvRYPDb5Q0jMcYw4ZSt7_9wX4XErc1kM1Y-6UbQkzRrb6U9JO7k-U7F4jCuk4Mm0TRspxXCXBPxA5hgVJhS1kkmKUXMAE0oFQ2MYqv1qC2Do6HEg&state=f7d0db0883384c85b43c255cfd37b0e4
+Cookie: ringobotUserId=b2b936145db64c89a4f77ec4896ed8c8;

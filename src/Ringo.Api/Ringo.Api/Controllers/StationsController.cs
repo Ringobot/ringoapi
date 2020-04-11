@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace Ringo.Api.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("[controller]")]
     [ApiController]
     public class StationsController : ControllerBase
     {

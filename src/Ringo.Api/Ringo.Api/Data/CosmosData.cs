@@ -1,6 +1,7 @@
 ﻿using Microsoft.ApplicationInsights;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -10,13 +11,17 @@ namespace Ringo.Api.Data
     {
         private const string CosmosDbIdKey = "CosmosData_DatabaseId";
 
+        private readonly ILogger<CosmosData<T>> _logger;
+
         protected readonly TelemetryClient _telemetry;
         protected readonly Container _container;
 
+
         protected readonly string ModelName;
 
-        public CosmosData(IConfiguration config, TelemetryClient telemetry, CosmosClient cosmos)
+        public CosmosData(IConfiguration config, TelemetryClient telemetry, ILogger<CosmosData<T>> logger, CosmosClient cosmos)
         {
+            _logger = logger;
             _telemetry = telemetry;
 
             // Get model name from Type Argument. This is reflection on construction. CosmosData should be a singleton.
@@ -57,6 +62,18 @@ namespace Ringo.Api.Data
             var response = await _container.ReadItemAsync<T>(id, new PartitionKey(pk));
             TrackEvent($"CosmosData/{ModelName}/Get", response, response.Resource);
             return response.Resource;
+        }
+        public async Task<T> GetOrDefault(string id, string pk)
+        {
+            try
+            {
+                return await Get(id, pk);
+            }
+            catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _logger.LogInformation($"Document not found. Returning null. Id = \"{id}\" PK = \"{pk}\". Exception message = {ex.Message}");
+                return default;
+            }
         }
 
         public async Task<IEnumerable<T>> GetAll()

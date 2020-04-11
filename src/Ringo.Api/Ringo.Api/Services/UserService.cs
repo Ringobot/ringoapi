@@ -1,6 +1,7 @@
 ﻿using Ringo.Api.Data;
 using Ringo.Api.Models;
 using SpotifyApi.NetCore.Authorization;
+using System.Security.Claims;
 using System.Threading.Tasks;
 
 namespace Ringo.Api.Services
@@ -21,12 +22,17 @@ namespace Ringo.Api.Services
 
         public async Task<User> GetUser(string userId)
         {
-            return await _userData.Get(userId, userId);
+            return await _userData.GetOrDefault(userId, userId);
+        }
+
+        public Task<User> GetUser(ClaimsPrincipal user)
+        {
+            throw new System.NotImplementedException();
         }
 
         public async Task SetRefreshToken(string userId, BearerAccessRefreshToken tokens)
         {
-            var user = await GetUser(userId);
+            var user = await _userData.Get(userId, userId);
             user.Tokens = tokens;
             await _userData.Replace(user, user.ETag);
         }

@@ -3,4 +3,6 @@ bin
 obj
 *.suo
 *.user
-appSettings.*.json
+appsettings.*.json
+appsettings.json
+_work
