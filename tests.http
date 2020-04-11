@@ -1,6 +1,13 @@
-POST https://localhost:44349/auth/authorize
+# Start the Auth process in the Browser by Getting https://localhost:44349/auth/authorize
+GET https://localhost:44349/auth/authorize
 
 ###
+
+PUT https://localhost:44349/stations/whkmas/start
+Cookie: ringobotUserId=2dc6320ae0514efe91c71313d7018bbf;
+Authorization: Bearer BQDGasIrben9Hm_BDxEO91wXTHSGcjtGjHbgxfdAxtPCqUDCSjoA4_kg4uNFMNLP1bm4Ql-SBq9iPGNHTSd7MQMl2cloueiV5AzNXroXmQ8qeq3rrdxi6W5hpbgYlotrL8-1_eT3JF5evTzocKVr2t_3zwJfgOTr
+
+### 
 
 GET https://localhost:44349/health
 

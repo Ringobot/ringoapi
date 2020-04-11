@@ -1,5 +1,6 @@
 ﻿using Ringo.Api.Data;
 using SpotifyApi.NetCore.Authorization;
+using System;
 
 namespace Ringo.Api.Models
 {
@@ -17,5 +18,9 @@ namespace Ringo.Api.Models
         public BearerAccessRefreshToken Tokens { get; set; }
 
         public bool Authorized { get; set; }
+        
+        public DateTimeOffset AccessTokenExpiresBefore { get; set; }
+
+        public bool AccessTokenHasExpired => AccessTokenExpiresBefore <= DateTimeOffset.UtcNow;
     }
 }

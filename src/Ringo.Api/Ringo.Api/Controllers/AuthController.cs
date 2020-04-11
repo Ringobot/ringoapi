@@ -32,7 +32,7 @@ namespace Ringo.Api.Controllers
         [Route("auth/authorize")]
         public async Task<Models.AuthorizationResult> Authorize()
         {
-            string userId = GetUserId();
+            string userId = CookieHelper.GetUserId(HttpContext);
 
             var user = await _userService.GetUser(userId);
             if (user != null && user.Authorized) return MapToAuthorization(user);
@@ -71,7 +71,7 @@ namespace Ringo.Api.Controllers
             }
 
 
-            string userId = GetUserId();
+            string userId = CookieHelper.GetUserId(HttpContext);
 
             // if Spotify returned an error, throw it
             if (error != null) throw new SpotifyApiErrorException(error);
@@ -90,21 +90,6 @@ namespace Ringo.Api.Controllers
                 StatusCode = (int)HttpStatusCode.OK,
                 Content = $"<html><body><script>window.opener.postMessage(true, \"*\");window.close()</script><p>Spotify Authorization successful. You can close this window now.</p><p>UserId = {userId}.</p><textarea>{tokens.AccessToken}</textarea></body></html>"
             };
-        }
-
-        /// Get's the userId cookie and sets one if it does not exist
-        private string GetUserId()
-        {
-            const string UserIdCookieName = "ringobotUserId";
-            string id = Request.Cookies[UserIdCookieName];
-            if (string.IsNullOrEmpty(id))
-            {
-                id = Guid.NewGuid().ToString("N");
-                Response.Cookies.Append(UserIdCookieName, id,
-                    new CookieOptions { Expires = DateTime.Now.AddYears(1), SameSite = SameSiteMode.None });
-            }
-
-            return id;
         }
 
         private AuthorizationResult MapToAuthorization(Models.User user) =>

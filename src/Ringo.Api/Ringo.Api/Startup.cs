@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Ringo.Api.Controllers;
 using Ringo.Api.Data;
 using Ringo.Api.Models;
 using Ringo.Api.Services;
@@ -25,7 +27,7 @@ namespace Ringo.Api
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddControllers();
+            services.AddControllers(options => options.Filters.Add<AuthSpotifyBearerFilter>());
             services.AddApplicationInsightsTelemetry();
 
             services.AddSingleton<IUserService, UserService>();
@@ -36,6 +38,7 @@ namespace Ringo.Api
             services.AddSingleton<ICosmosData<Station>, CosmosData<Station>>();
             services.AddSingleton<IPlayerApi>(new PlayerApi(new HttpClient()));
             services.AddSingleton(new CosmosClient(Configuration["CosmosConnectionString"]));
+            services.AddSingleton<IStationService, StationService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
