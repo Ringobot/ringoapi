@@ -28,17 +28,20 @@ namespace Ringo.Api.Services
 
         public async Task<StationServiceResult> Start(Models.User user, string stationId)
         {
-            var station = await _data.Get(stationId, stationId);
+            var station = await _data.GetOrDefault(stationId, stationId);
+            if (station == null) return new StationServiceResult { Status = 404, Message = $"Station ({stationId}) not found" };
+
             var np = await GetNowPlaying(user);
 
             if (!np.IsPlaying) return new StationServiceResult { Status = 201, Message = "Waiting for active device" };
 
-            return new StationServiceResult { Status = 200, Message = "Playing" };
+            return new StationServiceResult { Status = 200, Success = true, Message = "Playing" };
         }
 
         public async Task<StationServiceResult> Join(Models.User user, string stationId)
         {
-            var station = await _data.Get(stationId, stationId);
+            var station = await _data.GetOrDefault(stationId, stationId);
+            if (station == null) return new StationServiceResult { Status = 404, Message = $"Station ({stationId}) not found" };
 
             var ownerNP = await GetNowPlaying(station.Owner);
 
@@ -189,6 +192,11 @@ namespace Ringo.Api.Services
                 // log and continue
                 _logger.LogError(ex, ex.Message);
             }
+        }
+
+        public Task<StationServiceResult> ChangeOwner(Models.User user, string stationId)
+        {
+            throw new NotImplementedException();
         }
     }
 }

@@ -25,16 +25,16 @@ namespace Ringo.Api.Controllers
 
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
-            // Only run if Action is decorated with [AuthSpotifyBearer]
+            // Only run if Controller / Action is decorated with [AuthSpotifyBearer]
             var attribute = context.ActionDescriptor.FilterDescriptors
                 .Select(x => x.Filter).OfType<AuthSpotifyBearerAttribute>().FirstOrDefault();
-
             if (attribute == null)
             {
                 await next();
                 return;
             }
 
+            // if no auth header => Forbidden
             var authHeader = context.HttpContext.Request.Headers["Authorization"];
             if (!authHeader.Any())
             {
@@ -42,22 +42,16 @@ namespace Ringo.Api.Controllers
                 return;
             }
 
+            // if user exists and user has been authorized and token has not expired and token matches bearer => Continue
             var bearer = authHeader[0].Replace("Bearer ", "", StringComparison.OrdinalIgnoreCase);
-            if (string.IsNullOrEmpty(bearer))
-            {
-                context.Result = new StatusCodeResult(403);
-                return;
-            }
-
             string userId = CookieHelper.GetUserId(context.HttpContext);
             var user = await _userService.GetUser(userId);
-            if (user == null)
-            {
-                context.Result = new StatusCodeResult(403);
-                return;
-            }
-
-            if (!user.Authorized || user.AccessTokenHasExpired || user.Tokens == null)
+            if (
+                user == null || 
+                !user.Authorized || 
+                user.AccessTokenHasExpired || 
+                user.Tokens == null || 
+                user.Tokens.AccessToken != bearer)
             {
                 context.Result = new StatusCodeResult(403);
                 return;

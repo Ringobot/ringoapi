@@ -4,8 +4,14 @@ GET https://localhost:44349/auth/authorize
 ###
 
 PUT https://localhost:44349/stations/whkmas/start
-Cookie: ringobotUserId=2dc6320ae0514efe91c71313d7018bbf;
-Authorization: Bearer BQDGasIrben9Hm_BDxEO91wXTHSGcjtGjHbgxfdAxtPCqUDCSjoA4_kg4uNFMNLP1bm4Ql-SBq9iPGNHTSd7MQMl2cloueiV5AzNXroXmQ8qeq3rrdxi6W5hpbgYlotrL8-1_eT3JF5evTzocKVr2t_3zwJfgOTr
+Cookie: ringobotUserId=8640658e7dd84e3d80ac949a72a45a1e;
+Authorization: Bearer BQAp7rRW2azFzZO-uFCMMPTVwADm5-wWQXsIBgjrOSG3spTQ0RuJaRrWXJSfGFYiSRP5P_ba9w-uaT5QxzTArvqaa881z_-Mrwr37QIM75OuSNjKkTHatLrd-ppggg-8e8xs4BUO2EXdK8g_Cq4m4inNwxpsEG6v
+
+### 
+
+PUT https://localhost:44349/stations/whkmas/join
+Cookie: ringobotUserId=8640658e7dd84e3d80ac949a72a45a1e;
+Authorization: Bearer BQAp7rRW2azFzZO-uFCMMPTVwADm5-wWQXsIBgjrOSG3spTQ0RuJaRrWXJSfGFYiSRP5P_ba9w-uaT5QxzTArvqaa881z_-Mrwr37QIM75OuSNjKkTHatLrd-ppggg-8e8xs4BUO2EXdK8g_Cq4m4inNwxpsEG6v
 
 ### 
 
