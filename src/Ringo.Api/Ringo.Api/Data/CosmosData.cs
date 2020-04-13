@@ -24,7 +24,7 @@ namespace Ringo.Api.Data
             _logger = logger;
             _telemetry = telemetry;
 
-            // Get model name from Type Argument. This is reflection on construction. CosmosData should be a singleton.
+            // Get model name from Type Argument. This is reflection on construction. CosmosData should be a transient or singleton.
             ModelName = GetType().GenericTypeArguments[0].Name;
 
             // Derived container app setting key name

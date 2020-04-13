@@ -1,9 +1,6 @@
-﻿using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
+﻿using Microsoft.AspNetCore.Mvc;
+using Ringo.Api.Models;
 using Ringo.Api.Services;
-using System;
 using System.Threading.Tasks;
 
 namespace Ringo.Api.Controllers
@@ -46,5 +43,14 @@ namespace Ringo.Api.Controllers
             var result = await _stationService.ChangeOwner(await _userService.GetUser(CookieHelper.GetUserId(HttpContext)), id);
             return new JsonResult(result) { StatusCode = result.Status };
         }
+
+        [HttpPost()]
+        public async Task<IActionResult> Post([FromBody]CreateStation station)
+        {
+            var result = await _stationService.CreateStation(
+                await _userService.GetUser(CookieHelper.GetUserId(HttpContext)), station);
+            return new JsonResult(result) { StatusCode = result.Status };
+        }
+
     }
 }

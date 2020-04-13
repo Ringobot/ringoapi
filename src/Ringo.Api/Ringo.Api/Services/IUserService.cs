@@ -9,6 +9,5 @@ namespace Ringo.Api.Services
     {
         Task<User> GetUser(string userId);
         Task<User> CreateUser(string userId);
-        Task SetRefreshToken(string userId, BearerAccessRefreshToken tokens);
     }
 }

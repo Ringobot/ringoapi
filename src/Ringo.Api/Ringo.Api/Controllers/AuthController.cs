@@ -1,10 +1,8 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Ringo.Api.Models;
 using Ringo.Api.Services;
 using SpotifyApi.NetCore;
 using SpotifyApi.NetCore.Authorization;
-using System;
 using System.Net;
 using System.Threading.Tasks;
 
@@ -15,16 +13,16 @@ namespace Ringo.Api.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IUserAccountsService _userAccounts;
-        private readonly IUserService _userService;
+        private readonly IAccessTokenService _tokenService;
         private readonly IUserStateService _userStateService;
 
         public AuthController(
             IUserAccountsService userAccounts,
-            IUserService userService,
+            IAccessTokenService tokenService,
             IUserStateService userStateService)
         {
             _userAccounts = userAccounts;
-            _userService = userService;
+            _tokenService = tokenService;
             _userStateService = userStateService;
         }
 
@@ -34,9 +32,7 @@ namespace Ringo.Api.Controllers
         {
             string userId = CookieHelper.GetUserId(HttpContext);
 
-            var user = await _userService.GetUser(userId);
-            if (user != null && user.Authorized) return MapToAuthorization(user);
-            if (user == null) await _userService.CreateUser(userId);
+            if (await _tokenService.HasAccessToken(userId)) return new AuthorizationResult { UserId = userId, Authorized = true };
 
             // create a state value and persist it until the callback
             string state = await _userStateService.NewState(userId);
@@ -62,6 +58,7 @@ namespace Ringo.Api.Controllers
         {
             if (string.IsNullOrEmpty(state))
             {
+                // return Test HTML
                 return new ContentResult
                 {
                     Content = "<form method=\"post\"><input type=\"submit\" value=\"Authorize\" /></form>",
@@ -70,7 +67,6 @@ namespace Ringo.Api.Controllers
                 };
             }
 
-
             string userId = CookieHelper.GetUserId(HttpContext);
 
             // if Spotify returned an error, throw it
@@ -78,10 +74,12 @@ namespace Ringo.Api.Controllers
 
             // Use the code to request a token
             var tokens = await _userAccounts.RequestAccessRefreshToken(code);
-            await _userService.SetRefreshToken(userId, tokens);
 
             //TODO: check state is valid
             await _userStateService.ValidateState(state, userId);
+
+            // Save the Token
+            await _tokenService.SetAccessToken(userId, tokens);
 
             // return an HTML result that posts a message back to the opening window and then closes itself.
             return new ContentResult
@@ -91,12 +89,5 @@ namespace Ringo.Api.Controllers
                 Content = $"<html><body><script>window.opener.postMessage(true, \"*\");window.close()</script><p>Spotify Authorization successful. You can close this window now.</p><p>UserId = {userId}.</p><textarea>{tokens.AccessToken}</textarea></body></html>"
             };
         }
-
-        private AuthorizationResult MapToAuthorization(Models.User user) =>
-            new AuthorizationResult
-            {
-                Authorized = user.Authorized,
-                UserId = user.UserId
-            };
     }
 }

@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Microsoft.Azure.Cosmos;
+using Microsoft.Extensions.Logging;
 using Ringo.Api.Data;
 using Ringo.Api.Models;
 using Scale;
@@ -17,30 +18,42 @@ namespace Ringo.Api.Services
         private readonly ILogger<StationService> _logger;
         private readonly ICosmosData<Station> _data;
         private readonly IPlayerApi _player;
+        private readonly IAccessTokenService _tokens;
 
-
-        public StationService(ILogger<StationService> logger, IPlayerApi playerApi, ICosmosData<Station> stationData)
+        public StationService(
+            ILogger<StationService> logger, 
+            ICosmosData<Station> stationData,
+            IPlayerApi playerApi,
+            IAccessTokenService accessTokenService)
         {
             _logger = logger;
-            _player = playerApi;
             _data = stationData;
+            _player = playerApi;
+            _tokens = accessTokenService;
         }
 
         public async Task<StationServiceResult> Start(Models.User user, string stationId)
         {
-            var station = await _data.GetOrDefault(stationId, stationId);
+            if (user == null) throw new ArgumentNullException(nameof(user));
+            
+            string sId = Station.CanonicalId(stationId);
+            var station = await _data.GetOrDefault(sId, sId);
             if (station == null) return new StationServiceResult { Status = 404, Message = $"Station ({stationId}) not found" };
 
             var np = await GetNowPlaying(user);
 
-            if (!np.IsPlaying) return new StationServiceResult { Status = 201, Message = "Waiting for active device" };
+            if (!np.IsPlaying) return new StationServiceResult { Status = 202, Message = "Waiting for active device" };
 
             return new StationServiceResult { Status = 200, Success = true, Message = "Playing" };
         }
 
         public async Task<StationServiceResult> Join(Models.User user, string stationId)
         {
-            var station = await _data.GetOrDefault(stationId, stationId);
+            if (user == null) throw new ArgumentNullException(nameof(user)); 
+            
+            string sId = Station.CanonicalId(stationId);
+            var station = await _data.GetOrDefault(sId, sId);
+
             if (station == null) return new StationServiceResult { Status = 404, Message = $"Station ({stationId}) not found" };
 
             var ownerNP = await GetNowPlaying(station.Owner);
@@ -53,16 +66,12 @@ namespace Ringo.Api.Services
             if (!np1.IsPlaying) return new StationServiceResult { Status = 201, Message = "Waiting for active device" };
 
             // SYNC user to owner
-
-            if (!SupportedSpotifyItemTypes.Contains(station.SpotifyContextType))
-                throw new NotSupportedException($"\"{station.SpotifyContextType}\" is not a supported Spotify context type");
-
             await TurnOffShuffleRepeat(user, np1);
 
             try
             {
                 // mute joining player
-                await MuteUnmute(user, np1, true);
+                //await MuteUnmute(user, np1, true);
 
                 // TWO
                 await PlayFromOffset(user, station, ownerNP);
@@ -72,7 +81,7 @@ namespace Ringo.Api.Services
 
                 //CALCULATE ERROR, if greater than 250ms, DO FOUR
                 var error = CalculateError(np1, np2);
-                if (error > TimeSpan.FromMilliseconds(250))
+                if (Math.Abs(error.TotalMilliseconds) > 250)
                 {
                     // FOUR
                     // PLAY OFFSET AGAIN
@@ -88,21 +97,52 @@ namespace Ringo.Api.Services
             return new StationServiceResult { Status = 200, Message = "Playing" };
         }
 
+        public Task<StationServiceResult> ChangeOwner(Models.User user, string stationId)
+        {
+            if (user == null) throw new ArgumentNullException(nameof(user));
+
+            throw new NotImplementedException();
+        }
+
+        public async Task<StationServiceResult> CreateStation(Models.User user, CreateStation station)
+        {
+            if (user == null) throw new ArgumentNullException(nameof(user));
+
+            try
+            {
+                await _data.Create(new Station(station.Id, station.Name, user));
+                return new StationServiceResult { Status = 204, Message = $"Station ({station}) created" };
+            }
+            catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                _logger.LogError(ex, ex.Message);
+                return new StationServiceResult
+                {
+                    Status = (int)System.Net.HttpStatusCode.Conflict,
+                    Message = $"Station ({station.Id}) already exists."
+                };
+            }
+        }
+
         private async Task PlayFromOffset(Models.User user, Station station, NowPlaying ownerNP, TimeSpan error = default)
         {
             if (error.Equals(default)) error = TimeSpan.Zero;
+            
+            string token = await _tokens.GetAccessToken(user.UserId);
 
             var positionMs = Convert.ToInt64(ownerNP.Offset.PositionNow().Add(error).TotalMilliseconds);
 
             // play from offset
-            switch (station.SpotifyContextType)
+            switch (ownerNP.Context.Type)
             {
                 case "album":
+                    //await _spotify.PlayAlbumOffset(ownerNP.Context.Uri, ownerNP.Track.Id, user, positionMs);
+
                     await RetryHelper.RetryAsync(
                         () => _player.PlayAlbumOffset(
                             ownerNP.Context.Uri,
                             ownerNP.Track.Id,
-                            accessToken: user.Tokens.AccessToken,
+                            accessToken: token,
                             positionMs: positionMs),
                             logger: _logger);
                     break;
@@ -112,12 +152,12 @@ namespace Ringo.Api.Services
                         () => _player.PlayPlaylistOffset(
                             ownerNP.Context.Uri,
                             ownerNP.Track.Id,
-                            accessToken: user.Tokens.AccessToken,
+                            accessToken: token,
                             positionMs: positionMs),
                         logger: _logger);
                     break;
 
-                default: throw new NotSupportedException($"\"{station.SpotifyContextType}\" is not a supported Spotify Context Type");
+                default: throw new NotSupportedException($"\"{ownerNP.Context.Type}\" is not a supported Spotify Context Type");
             }
         }
 
@@ -135,7 +175,11 @@ namespace Ringo.Api.Services
 
             // DateTime has enough fidelity for these timings
             var start = DateTime.UtcNow;
-            CurrentPlaybackContext info = await _player.GetCurrentPlaybackInfo(user.Tokens.AccessToken);
+            CurrentPlaybackContext info = await _player.GetCurrentPlaybackInfo(await _tokens.GetAccessToken(user.UserId));
+
+            // GetCurrentPlaybackInfo may return null if no devices are connected :/
+            if (info == null) return new NowPlaying { IsPlaying = false };
+
             var finish = DateTime.UtcNow;
             var rtt = finish.Subtract(start);
 
@@ -169,15 +213,17 @@ namespace Ringo.Api.Services
 
         private async Task TurnOffShuffleRepeat(Models.User user, NowPlaying np)
         {
+            string token = await _tokens.GetAccessToken(user.UserId);
+
             // turn off shuffle and repeat
             if (np.ShuffleOn)
             {
-                await _player.Shuffle(false, accessToken: user.Tokens.AccessToken, deviceId: np.Device.Id);
+                await _player.Shuffle(false, accessToken: token, deviceId: np.Device.Id);
             }
 
             if (np.RepeatOn)
             {
-                await _player.Repeat(RepeatStates.Off, accessToken: user.Tokens.AccessToken, deviceId: np.Device.Id);
+                await _player.Repeat(RepeatStates.Off, accessToken: token, deviceId: np.Device.Id);
             }
         }
 
@@ -185,18 +231,13 @@ namespace Ringo.Api.Services
         {
             try
             {
-                await _player.Volume(mute ? 0 : 100, accessToken: user.Tokens.AccessToken, deviceId: np.Device.Id);
+                await _player.Volume(mute ? 0 : 100, accessToken: await _tokens.GetAccessToken(user.UserId), deviceId: np.Device.Id);
             }
             catch (Exception ex)
             {
                 // log and continue
                 _logger.LogError(ex, ex.Message);
             }
-        }
-
-        public Task<StationServiceResult> ChangeOwner(Models.User user, string stationId)
-        {
-            throw new NotImplementedException();
         }
     }
 }

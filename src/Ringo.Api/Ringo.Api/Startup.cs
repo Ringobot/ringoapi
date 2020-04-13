@@ -29,16 +29,25 @@ namespace Ringo.Api
         {
             services.AddControllers(options => options.Filters.Add<AuthSpotifyBearerFilter>());
             services.AddApplicationInsightsTelemetry();
+            services.AddMemoryCache();
 
-            services.AddSingleton<IUserService, UserService>();
-            services.AddSingleton<IUserAccountsService, UserAccountsService>();
-            services.AddSingleton<IUserStateService, UserStateService>();
-            services.AddSingleton<ICosmosData<Models.User>, CosmosData<Models.User>>();
-            services.AddSingleton<ICosmosData<UserState>, CosmosData<UserState>>();
-            services.AddSingleton<ICosmosData<Station>, CosmosData<Station>>();
-            services.AddSingleton<IPlayerApi>(new PlayerApi(new HttpClient()));
+            // Transients
+            services.AddTransient<IUserService, UserService>();
+            services.AddTransient<IUserAccountsService, UserAccountsService>();
+            services.AddTransient<IUserStateService, UserStateService>();
+            services.AddTransient<IPlayerApi, PlayerApi>();
+            services.AddTransient<IStationService, StationService>();
+            services.AddTransient<IAccessTokenService, SpotifyAccessTokenService>();
+            services.AddTransient<ICache, RingoMemoryCache>();
+            
+            services.AddTransient<ICosmosData<Models.User>, CosmosData<Models.User>>();
+            services.AddTransient<ICosmosData<UserState>, CosmosData<UserState>>();
+            services.AddTransient<ICosmosData<Station>, CosmosData<Station>>();
+            services.AddTransient<ICosmosData<UserAccessToken>, CosmosData<UserAccessToken>>();
+
+            // Singletons
             services.AddSingleton(new CosmosClient(Configuration["CosmosConnectionString"]));
-            services.AddSingleton<IStationService, StationService>();
+            services.AddSingleton(new HttpClient());
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

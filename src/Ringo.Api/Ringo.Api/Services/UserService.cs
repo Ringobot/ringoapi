@@ -25,16 +25,5 @@ namespace Ringo.Api.Services
         {
             return await _userData.GetOrDefault(userId, userId);
         }
-
-        public async Task SetRefreshToken(string userId, BearerAccessRefreshToken tokens)
-        {
-            var now = DateTimeOffset.UtcNow;
-            var user = await _userData.Get(userId, userId);
-            user.Tokens = tokens;
-            user.Authorized = true;
-            user.AccessTokenExpiresBefore = tokens.Expires ?? now.AddMinutes(tokens.ExpiresIn);
-           
-            await _userData.Replace(user, user.ETag);
-        }
     }
 }

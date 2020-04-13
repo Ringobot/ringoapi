@@ -8,5 +8,6 @@ namespace Ringo.Api.Services
         Task<StationServiceResult> Start(User user, string stationId);
         Task<StationServiceResult> Join(User user, string stationId);
         Task<StationServiceResult> ChangeOwner(User user, string stationId);
+        Task<StationServiceResult> CreateStation(User user, CreateStation station);
     }
 }

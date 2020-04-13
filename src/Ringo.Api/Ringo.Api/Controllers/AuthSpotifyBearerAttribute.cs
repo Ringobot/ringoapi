@@ -16,11 +16,13 @@ namespace Ringo.Api.Controllers
 
     public class AuthSpotifyBearerFilter : IAsyncActionFilter
     {
-        private readonly IUserService _userService;
+        //private readonly IUserService _userService;
+        private readonly IAccessTokenService _tokens;
 
-        public AuthSpotifyBearerFilter(IUserService userService)
+        public AuthSpotifyBearerFilter(IUserService userService, IAccessTokenService accessTokenService)
         {
-            _userService = userService;
+            //_userService = userService;
+            _tokens = accessTokenService;
         }
 
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
@@ -42,16 +44,14 @@ namespace Ringo.Api.Controllers
                 return;
             }
 
+            // TODO: Not OK to auth using Spotify Bearer Token
             // if user exists and user has been authorized and token has not expired and token matches bearer => Continue
             var bearer = authHeader[0].Replace("Bearer ", "", StringComparison.OrdinalIgnoreCase);
             string userId = CookieHelper.GetUserId(context.HttpContext);
-            var user = await _userService.GetUser(userId);
+            string accessToken = await _tokens.GetAccessToken(userId);
             if (
-                user == null || 
-                !user.Authorized || 
-                user.AccessTokenHasExpired || 
-                user.Tokens == null || 
-                user.Tokens.AccessToken != bearer)
+                accessToken == null || 
+                accessToken != bearer)
             {
                 context.Result = new StatusCodeResult(403);
                 return;

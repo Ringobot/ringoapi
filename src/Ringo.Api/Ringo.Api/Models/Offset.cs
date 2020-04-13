@@ -51,7 +51,7 @@ namespace Ringo.Api.Models
         /// </summary>
         public TimeSpan PositionNow(DateTimeOffset now = default)
         {
-            if (now.Equals(default(DateTime))) now = DateTimeOffset.UtcNow;
+            if (now == DateTimeOffset.MinValue) now = DateTimeOffset.UtcNow;
             var positionNow = PositionAtEpoch.Add(now.Subtract(Epoch));
             return positionNow > Duration ? Duration : positionNow;
         }

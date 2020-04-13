@@ -1,17 +1,25 @@
 # Start the Auth process in the Browser by Getting https://localhost:44349/auth/authorize
 GET https://localhost:44349/auth/authorize
 
-###
-
+### Start
 PUT https://localhost:44349/stations/whkmas/start
-Cookie: ringobotUserId=8640658e7dd84e3d80ac949a72a45a1e;
-Authorization: Bearer BQAp7rRW2azFzZO-uFCMMPTVwADm5-wWQXsIBgjrOSG3spTQ0RuJaRrWXJSfGFYiSRP5P_ba9w-uaT5QxzTArvqaa881z_-Mrwr37QIM75OuSNjKkTHatLrd-ppggg-8e8xs4BUO2EXdK8g_Cq4m4inNwxpsEG6v
+Cookie: ringobotUserId=6b871e36ac684a9d9e61937b227f619a;
+Authorization: Bearer BQA9ScV9ck5Ib3Z9IZ-DQClyOq8IgK7PkMC_aacxAk0E3cz5LLiNocjXle9yCGkbUYuantqZ9NJuFkuUiMyyuW63PZQ8nTOkayIue3ePK8Vi5_5QqqR4aakWok1TNz6fLLZtRNkZU6_xDi6NoyhdHpTmSd8MDfc1
 
-### 
-
+### Join
 PUT https://localhost:44349/stations/whkmas/join
-Cookie: ringobotUserId=8640658e7dd84e3d80ac949a72a45a1e;
-Authorization: Bearer BQAp7rRW2azFzZO-uFCMMPTVwADm5-wWQXsIBgjrOSG3spTQ0RuJaRrWXJSfGFYiSRP5P_ba9w-uaT5QxzTArvqaa881z_-Mrwr37QIM75OuSNjKkTHatLrd-ppggg-8e8xs4BUO2EXdK8g_Cq4m4inNwxpsEG6v
+Cookie: ringobotUserId=6b871e36ac684a9d9e61937b227f619a;
+Authorization: Bearer BQA9ScV9ck5Ib3Z9IZ-DQClyOq8IgK7PkMC_aacxAk0E3cz5LLiNocjXle9yCGkbUYuantqZ9NJuFkuUiMyyuW63PZQ8nTOkayIue3ePK8Vi5_5QqqR4aakWok1TNz6fLLZtRNkZU6_xDi6NoyhdHpTmSd8MDfc1
+
+### Start 2
+PUT https://localhost:44349/stations/whkmas/start
+Cookie: ringobotUserId=738166ad0ed54408976a23972d358b64;
+Authorization: Bearer BQBNxH3eHzRIOR31eUXnYnAoEGytD8eXkJomYHcwhOdZKdH5qVXnaUdexPSzsJK18SvDMxdVrjKrRzQZ94ZxTAz4mLS-uUHOpS0I3JO4mQHvcKjrqcQVLzLkWyRbFu-AzHzi3Tjx2-c5gfxyHz0wZ7Vg9gSpF1xtgXnjZG7njkFCMP0
+
+### Join 2
+PUT https://localhost:44349/stations/whkmas/join
+Cookie: ringobotUserId=738166ad0ed54408976a23972d358b64;
+Authorization: Bearer BQBNxH3eHzRIOR31eUXnYnAoEGytD8eXkJomYHcwhOdZKdH5qVXnaUdexPSzsJK18SvDMxdVrjKrRzQZ94ZxTAz4mLS-uUHOpS0I3JO4mQHvcKjrqcQVLzLkWyRbFu-AzHzi3Tjx2-c5gfxyHz0wZ7Vg9gSpF1xtgXnjZG7njkFCMP0
 
 ### 
 
@@ -21,3 +29,14 @@ GET https://localhost:44349/health
 ### 
 GET https://localhost:44349/auth/authorize?code=AQCefISDgcwlgcXvUBpXQfH-K-wHYDE1lUTMiaofaPwg8pLHlf4B7-BNsaG7xAsZbrzwxXw1wpPavcrhvQKuC4v-l1jFMfq9r0hZYSnw9Gs2_NVrRaXW9ruYjEGUPYEmX8rVRjxYPgyjGZstQ4AKV958ICLA8qQL1mHaNUiMEvRYPDb5Q0jMcYw4ZSt7_9wX4XErc1kM1Y-6UbQkzRrb6U9JO7k-U7F4jCuk4Mm0TRspxXCXBPxA5hgVJhS1kkmKUXMAE0oFQ2MYqv1qC2Do6HEg&state=f7d0db0883384c85b43c255cfd37b0e4
 Cookie: ringobotUserId=b2b936145db64c89a4f77ec4896ed8c8;
+
+### Create Station
+POST https://localhost:44349/stations
+Cookie: ringobotUserId=6b871e36ac684a9d9e61937b227f619a;
+Authorization: Bearer BQBaGaKHVGmbSNMq8t4K5RNGIZho6kR-FZzYVor0ig_Y6ushozwvzA3xQ_R4Sdo0e_PfWzDh27gUiwPpa_TEDdGz4sdzOIklt2MmH5DqUYcVX1HY65O-RnX5MrtEkQxdl0b-EPXnpu0B8UN5KjzKguSkFTZhA_u8
+Content-Type: application/json
+
+{
+    "id": "whkmas",
+    "name": "WHKMAS"
+}
