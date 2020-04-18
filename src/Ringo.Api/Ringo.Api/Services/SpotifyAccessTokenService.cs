@@ -32,31 +32,40 @@ namespace Ringo.Api.Services
             return await RetryHelper.RetryAsync(async () =>
             {
                 // get User Access Tokens from Cache
-                var cachedToken = await _cache.Get<UserAccessToken>(Key(userId));
+                string cachedToken = await _cache.Get<string>(Key(userId));
 
-                // Return cached value if hit and not expired
-                if (cachedToken != null && !cachedToken.AccessTokenHasExpired) return cachedToken.Tokens.AccessToken;
+                // Return cached token if hit
+                if (cachedToken != null) return cachedToken;
 
                 // Get token from storage
                 var storedToken = await _data.Get(UserAccessToken.CanonicalId(userId), userId);
+
+                if (storedToken == null) return null;
+
                 if (storedToken.AccessTokenHasExpired)
                 {
                     // If token has expired, refresh the token
+                    var now = DateTimeOffset.UtcNow;
                     var newToken = await _userAccounts.RefreshUserAccessToken(storedToken.Tokens.RefreshToken);
-                    storedToken.ResetAccessToken(newToken);
+                    storedToken.ResetAccessToken(newToken, now);
 
                     // Save User Access Tokens to storage
                     await _data.Replace(storedToken, storedToken.ETag);
                 }
 
-                // Store User Access Tokens in Cache. Set Cache item expiry for when the token is due to expire
-                await _cache.Set(Key(userId), storedToken, storedToken.AccessTokenExpiresBefore.Subtract(DateTimeOffset.UtcNow));
+                // Store AccessToken (only) in Cache. Set Cache item expiry for when the token is due to expire.
+                // DO NOT cache Refresh Tokens
+                await _cache.Set(
+                    Key(userId), 
+                    storedToken.Tokens.AccessToken, 
+                    storedToken.AccessTokenExpiresBefore.Subtract(DateTimeOffset.UtcNow));
+
                 return storedToken.Tokens.AccessToken;
+
             }, waitMs: 10, logger: _logger);
         }
 
-        public async Task<bool> HasAccessToken(string userId) =>
-            await _data.GetOrDefault(UserAccessToken.CanonicalId(userId), userId) != null;
+        public async Task<bool> HasAccessToken(string userId) => await GetAccessToken(userId) != null;
 
         public async Task SetAccessToken(string userId, BearerAccessRefreshToken token)
         {

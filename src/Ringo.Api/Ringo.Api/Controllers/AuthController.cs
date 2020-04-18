@@ -32,7 +32,7 @@ namespace Ringo.Api.Controllers
         {
             string userId = CookieHelper.GetUserId(HttpContext);
 
-            if (await _tokenService.HasAccessToken(userId)) return new AuthorizationResult { UserId = userId, Authorized = true };
+            //if (await _tokenService.HasAccessToken(userId)) return new AuthorizationResult { UserId = userId, Authorized = true };
 
             // create a state value and persist it until the callback
             string state = await _userStateService.NewState(userId);

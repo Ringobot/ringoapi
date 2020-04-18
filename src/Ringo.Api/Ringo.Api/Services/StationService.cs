@@ -1,41 +1,45 @@
-﻿using Microsoft.Azure.Cosmos;
+﻿using Microsoft.ApplicationInsights;
+using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
 using Ringo.Api.Data;
 using Ringo.Api.Models;
-using Scale;
 using SpotifyApi.NetCore;
 using SpotifyApi.NetCore.Models;
 using System;
-using System.Linq;
+using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Xml;
 
 namespace Ringo.Api.Services
 {
     public class StationService : IStationService
     {
         private static readonly string[] SupportedSpotifyItemTypes = new[] { "playlist" };
-        
+
         private readonly ILogger<StationService> _logger;
         private readonly ICosmosData<Station> _data;
         private readonly IPlayerApi _player;
         private readonly IAccessTokenService _tokens;
+        private readonly TelemetryClient _telemetry;
 
         public StationService(
-            ILogger<StationService> logger, 
+            ILogger<StationService> logger,
             ICosmosData<Station> stationData,
             IPlayerApi playerApi,
-            IAccessTokenService accessTokenService)
+            IAccessTokenService accessTokenService,
+            TelemetryClient telemetryClient)
         {
             _logger = logger;
             _data = stationData;
             _player = playerApi;
             _tokens = accessTokenService;
+            _telemetry = telemetryClient;
         }
 
         public async Task<StationServiceResult> Start(Models.User user, string stationId)
         {
             if (user == null) throw new ArgumentNullException(nameof(user));
-            
+
             string sId = Station.CanonicalId(stationId);
             var station = await _data.GetOrDefault(sId, sId);
             if (station == null) return new StationServiceResult { Status = 404, Message = $"Station ({stationId}) not found" };
@@ -49,8 +53,8 @@ namespace Ringo.Api.Services
 
         public async Task<StationServiceResult> Join(Models.User user, string stationId)
         {
-            if (user == null) throw new ArgumentNullException(nameof(user)); 
-            
+            if (user == null) throw new ArgumentNullException(nameof(user));
+
             string sId = Station.CanonicalId(stationId);
             var station = await _data.GetOrDefault(sId, sId);
 
@@ -127,7 +131,7 @@ namespace Ringo.Api.Services
         private async Task PlayFromOffset(Models.User user, Station station, NowPlaying ownerNP, TimeSpan error = default)
         {
             if (error.Equals(default)) error = TimeSpan.Zero;
-            
+
             string token = await _tokens.GetAccessToken(user.UserId);
 
             var positionMs = Convert.ToInt64(ownerNP.Offset.PositionNow().Add(error).TotalMilliseconds);
@@ -138,27 +142,51 @@ namespace Ringo.Api.Services
                 case "album":
                     //await _spotify.PlayAlbumOffset(ownerNP.Context.Uri, ownerNP.Track.Id, user, positionMs);
 
-                    await RetryHelper.RetryAsync(
-                        () => _player.PlayAlbumOffset(
-                            ownerNP.Context.Uri,
-                            ownerNP.Track.Id,
-                            accessToken: token,
-                            positionMs: positionMs),
-                            logger: _logger);
+                    //await RetryHelper.RetryAsync(
+                    //() => 
+                    await _player.PlayAlbumOffset(
+                        ownerNP.Context.Uri,
+                        ownerNP.Track.Id,
+                        accessToken: token,
+                        positionMs: positionMs);
                     break;
 
                 case "playlist":
-                    await RetryHelper.RetryAsync(
-                        () => _player.PlayPlaylistOffset(
-                            ownerNP.Context.Uri,
-                            ownerNP.Track.Id,
-                            accessToken: token,
-                            positionMs: positionMs),
-                        logger: _logger);
+                    //await RetryHelper.RetryAsync(
+                    //() => 
+                    await _player.PlayPlaylistOffset(
+                        ownerNP.Context.Uri,
+                        ownerNP.Track.Id,
+                        accessToken: token,
+                        positionMs: positionMs);
+                    //logger: _logger);
                     break;
 
                 default: throw new NotSupportedException($"\"{ownerNP.Context.Type}\" is not a supported Spotify Context Type");
             }
+
+            _telemetry.TrackEvent(
+                $"Ringo.Api.Services.{nameof(StationService)}.{nameof(PlayFromOffset)}",
+                properties: new Dictionary<string, string>
+                {
+                    { "UserId", user.UserId },
+                    { "UtcNow", DateTimeOffset.UtcNow.ToString() }
+                },
+                metrics: new Dictionary<string, double>
+                {
+                    {
+                        "ErrorMS",
+                        error.TotalMilliseconds
+                    },
+                    {
+                        "PositionNowSubstractPositionAtEpochMS",
+                        ownerNP.Offset.PositionNow().Subtract(ownerNP.Offset.PositionAtEpoch).TotalMilliseconds
+                    },
+                    {
+                        "PositionMs",
+                        positionMs
+                    }
+                });
         }
 
         private TimeSpan CalculateError(NowPlaying np1, NowPlaying np2)
@@ -173,15 +201,39 @@ namespace Ringo.Api.Services
             //        () => _player.GetCurrentPlaybackInfo(user.Token),
             //        logger: _logger);
 
-            // DateTime has enough fidelity for these timings
-            var start = DateTime.UtcNow;
-            CurrentPlaybackContext info = await _player.GetCurrentPlaybackInfo(await _tokens.GetAccessToken(user.UserId));
+            var finish = DateTimeOffset.MaxValue;
 
-            // GetCurrentPlaybackInfo may return null if no devices are connected :/
-            if (info == null) return new NowPlaying { IsPlaying = false };
+            var getInfo = new Func<Task<(CurrentPlaybackContext info, TimeSpan rtt)>>(async () =>
+            {
+                // DateTime has enough fidelity for these timings
+                var start = DateTime.UtcNow;
+                CurrentPlaybackContext info = await _player.GetCurrentPlaybackInfo(await _tokens.GetAccessToken(user.UserId));
+                finish = DateTime.UtcNow;
+                var rtt = finish.Subtract(start);
 
-            var finish = DateTime.UtcNow;
-            var rtt = finish.Subtract(start);
+                return (info, rtt);
+            });
+
+            CurrentPlaybackContext info = null;
+            TimeSpan rtt = TimeSpan.Zero;
+
+            // try three times to get Info
+            for (int i = 0; i < 3; i++)
+            {
+                (info, rtt) = await getInfo();
+
+                // GetCurrentPlaybackInfo may return null if no devices are connected :/
+                if (info == null) return new NowPlaying { IsPlaying = false };
+
+                if (info.Item != null) break;
+                
+                _logger.LogWarning(
+                    $"Ringo.Api.Services.{nameof(StationService)}.{nameof(GetNowPlaying)}: _player.GetCurrentPlaybackInfo() returned null Item {info}");
+                
+                await Task.Delay(333);
+            }
+
+            if (info.Item == null) throw new InvalidOperationException("Could not Get Now Playing Info");
 
             var np = new NowPlaying
             {
@@ -207,6 +259,33 @@ namespace Ringo.Api.Services
                     ServerFetchTime = DateTimeOffset.FromUnixTimeMilliseconds(info.Timestamp)
                 };
             }
+
+            _telemetry.TrackEvent(
+                $"Ringo.Api.Services.{nameof(StationService)}.{nameof(GetNowPlaying)}",
+                properties: new Dictionary<string, string>
+                {
+                    { "UserId", user.UserId },
+                    { "UtcNow", finish.ToString() }
+                },
+                metrics: new Dictionary<string, double>
+                {
+                    {
+                        "RoundTripTimeMS",
+                        rtt.TotalMilliseconds
+                    },
+                    {
+                        "EpochSubtractServerFetchTimeMS",
+                        np.Offset.Epoch.Subtract(np.Offset.ServerFetchTime.Value).TotalMilliseconds
+                    },
+                    {
+                        "PositionAtEpochSubtractServerTimeMS",
+                        np.Offset.PositionAtEpoch.Subtract(TimeSpan.FromMilliseconds(info.ProgressMs ?? 0)).TotalMilliseconds
+                    },
+                    {
+                        "PositionNowSubstractPositionAtEpochMS",
+                        np.Offset.PositionNow().Subtract(np.Offset.PositionAtEpoch).TotalMilliseconds
+                    }
+                });
 
             return np;
         }

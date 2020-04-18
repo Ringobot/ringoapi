@@ -24,11 +24,12 @@ namespace Ringo.Api.Models
 
         public bool AccessTokenHasExpired => AccessTokenExpiresBefore <= DateTimeOffset.UtcNow;
 
-        internal void ResetAccessToken(BearerAccessToken newToken)
+        internal void ResetAccessToken(BearerAccessToken newToken, DateTimeOffset issuedDateTime)
         {
             Tokens.AccessToken = newToken.AccessToken;
             Tokens.ExpiresIn = newToken.ExpiresIn;
             Tokens.Scope = newToken.Scope;
+            Tokens.SetExpires(issuedDateTime.UtcDateTime);
         }
 
         internal static string CanonicalId(string id) => $"T:{id}";
