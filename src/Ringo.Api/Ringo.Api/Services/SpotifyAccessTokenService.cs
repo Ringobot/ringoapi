@@ -32,10 +32,10 @@ namespace Ringo.Api.Services
             return await RetryHelper.RetryAsync(async () =>
             {
                 // get User Access Tokens from Cache
-                //string cachedToken = await _cache.Get<string>(Key(userId));
+                string cachedToken = await _cache.Get<string>(Key(userId));
 
                 // Return cached token if hit
-                //if (cachedToken != null) return cachedToken;
+                if (cachedToken != null) return cachedToken;
 
                 // Get token from storage
                 var storedToken = await _data.GetOrDefault(UserAccessToken.CanonicalId(userId), userId);
@@ -55,10 +55,10 @@ namespace Ringo.Api.Services
 
                 // Store AccessToken (only) in Cache. Set Cache item expiry for when the token is due to expire.
                 // DO NOT cache Refresh Tokens
-                //await _cache.Set(
-                //    Key(userId), 
-                //    storedToken.Tokens.AccessToken, 
-                //    storedToken.AccessTokenExpiresBefore.Subtract(DateTimeOffset.UtcNow));
+                await _cache.Set(
+                    Key(userId),
+                    storedToken.AccessToken,
+                    storedToken.Expires.Subtract(DateTimeOffset.UtcNow));
 
                 return storedToken.AccessToken;
 
