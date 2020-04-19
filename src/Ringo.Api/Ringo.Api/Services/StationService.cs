@@ -8,7 +8,6 @@ using SpotifyApi.NetCore.Models;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using System.Xml;
 
 namespace Ringo.Api.Services
 {
@@ -39,33 +38,44 @@ namespace Ringo.Api.Services
         public async Task<StationServiceResult> Start(Models.User user, string stationId)
         {
             if (user == null) throw new ArgumentNullException(nameof(user));
+            var result = new StationServiceResult { Logs = new List<MetricLogEntry>() };
 
             string sId = Station.CanonicalId(stationId);
             var station = await _data.GetOrDefault(sId, sId);
             if (station == null) return new StationServiceResult { Status = 404, Message = $"Station ({stationId}) not found" };
 
-            var np = await GetNowPlaying(user);
+            var np = await GetNowPlaying(user, result);
 
-            if (!np.IsPlaying) return new StationServiceResult { Status = 202, Message = "Waiting for active device" };
+            if (!np.IsPlaying)
+            {
+                result.Message = "Waiting for active device";
+                result.Status = 202;
+                return result;
+            }
 
-            return new StationServiceResult { Status = 200, Success = true, Message = "Playing" };
+            result.Status = 200;
+            result.Message = "Playing";
+            result.Success = true;
+            return result;
         }
 
         public async Task<StationServiceResult> Join(Models.User user, string stationId)
         {
             if (user == null) throw new ArgumentNullException(nameof(user));
 
+            var result = new StationServiceResult { Logs = new List<MetricLogEntry>() };
+
             string sId = Station.CanonicalId(stationId);
             var station = await _data.GetOrDefault(sId, sId);
 
             if (station == null) return new StationServiceResult { Status = 404, Message = $"Station ({stationId}) not found" };
 
-            var ownerNP = await GetNowPlaying(station.Owner);
+            var ownerNP = await GetNowPlaying(station.Owner, result);
 
             if (!ownerNP.IsPlaying) return new StationServiceResult { Status = 403, Message = "Station Owner's device is not active" };
 
             // ONE
-            var np1 = await GetNowPlaying(user);
+            var np1 = await GetNowPlaying(user, result);
 
             if (!np1.IsPlaying) return new StationServiceResult { Status = 201, Message = "Waiting for active device" };
 
@@ -75,30 +85,42 @@ namespace Ringo.Api.Services
             try
             {
                 // mute joining player
-                //await MuteUnmute(user, np1, true);
+                await MuteUnmute(user, np1, true);
 
                 // TWO
-                await PlayFromOffset(user, station, ownerNP);
+                await PlayFromOffset(user, station, ownerNP, result);
 
                 // THREE
-                var np2 = await GetNowPlaying(user);
-
                 //CALCULATE ERROR, if greater than 250ms, DO FOUR
-                var error = CalculateError(np1, np2);
-                if (Math.Abs(error.TotalMilliseconds) > 250)
+                var ownerNP2 = await GetNowPlaying(station.Owner, result);
+                var error = CalculateError(ownerNP2, await GetNowPlaying(user, result), result);
+
+                if (Math.Abs(error.TotalMilliseconds) > 1000)
                 {
                     // FOUR
                     // PLAY OFFSET AGAIN
-                    await PlayFromOffset(user, station, ownerNP, error);
+                    await PlayFromOffset(user, station, ownerNP2, result, error: error);
+                    //var ownerNP3 = await GetNowPlaying(station.Owner, result);
+                    //var error2 = CalculateError(ownerNP3, await GetNowPlaying(user, result), result);
+
+                    //if (Math.Abs(error2.TotalMilliseconds) > 500)
+                    //{
+                    //    // FIVE
+                    //    // PLAY OFFSET AGAIN
+                    //    await PlayFromOffset(user, station, ownerNP3, result, error: error);
+                    //    CalculateError(await GetNowPlaying(station.Owner, result), await GetNowPlaying(user, result), result);
+                    //}
                 }
             }
             finally
             {
                 // unmute joining player
-                await MuteUnmute(user, np1, false);
+                await MuteUnmute(user, np1, false, volume: np1.Device.VolumePercent ?? 100);
             }
 
-            return new StationServiceResult { Status = 200, Message = "Playing" };
+            result.Status = 200;
+            result.Message = "Playing";
+            return result;
         }
 
         public Task<StationServiceResult> ChangeOwner(Models.User user, string stationId)
@@ -128,7 +150,12 @@ namespace Ringo.Api.Services
             }
         }
 
-        private async Task PlayFromOffset(Models.User user, Station station, NowPlaying ownerNP, TimeSpan error = default)
+        private async Task PlayFromOffset(
+            Models.User user,
+            Station station,
+            NowPlaying ownerNP,
+            StationServiceResult result,
+            TimeSpan error = default)
         {
             if (error.Equals(default)) error = TimeSpan.Zero;
 
@@ -165,14 +192,13 @@ namespace Ringo.Api.Services
                 default: throw new NotSupportedException($"\"{ownerNP.Context.Type}\" is not a supported Spotify Context Type");
             }
 
-            _telemetry.TrackEvent(
-                $"Ringo.Api.Services.{nameof(StationService)}.{nameof(PlayFromOffset)}",
-                properties: new Dictionary<string, string>
+            var props = new Dictionary<string, string>
                 {
                     { "UserId", user.UserId },
                     { "UtcNow", DateTimeOffset.UtcNow.ToString() }
-                },
-                metrics: new Dictionary<string, double>
+                };
+
+            var metrics = new Dictionary<string, double>
                 {
                     {
                         "ErrorMS",
@@ -186,16 +212,38 @@ namespace Ringo.Api.Services
                         "PositionMs",
                         positionMs
                     }
-                });
+                };
+
+            _telemetry.TrackEvent(
+                $"Ringo.Api.Services.{nameof(StationService)}.{nameof(PlayFromOffset)}",
+                properties: props,
+                metrics: metrics);
+
+            result.Logs.Add(new MetricLogEntry($"Ringo.Api.Services.{nameof(StationService)}.{nameof(PlayFromOffset)}")
+            {
+                Metrics = metrics,
+                Properties = props
+            });
         }
 
-        private TimeSpan CalculateError(NowPlaying np1, NowPlaying np2)
+        private TimeSpan CalculateError(NowPlaying np1, NowPlaying np2, StationServiceResult result)
         {
             var now = DateTimeOffset.UtcNow;
-            return np2.Offset.PositionNow(now).Subtract(np1.Offset.PositionNow(now));
+            var error = np2.Offset.PositionNow(now).Subtract(np1.Offset.PositionNow(now));
+            result.Logs.Add(new MetricLogEntry($"Ringo.Api.Services.{nameof(StationService)}.{nameof(CalculateError)}")
+            {
+                Metrics = new Dictionary<string, double>
+                {
+                    {
+                        "ErrorMS",
+                        error.TotalMilliseconds
+                    }
+                }
+            });
+            return error;
         }
 
-        private async Task<NowPlaying> GetNowPlaying(Models.User user)
+        private async Task<NowPlaying> GetNowPlaying(Models.User user, StationServiceResult result)
         {
             //var info = await RetryHelper.RetryAsync(
             //        () => _player.GetCurrentPlaybackInfo(user.Token),
@@ -226,10 +274,12 @@ namespace Ringo.Api.Services
                 if (info == null) return new NowPlaying { IsPlaying = false };
 
                 if (info.Item != null) break;
-                
+
                 _logger.LogWarning(
                     $"Ringo.Api.Services.{nameof(StationService)}.{nameof(GetNowPlaying)}: _player.GetCurrentPlaybackInfo() returned null Item {info}");
-                
+                result.Logs.Add(
+                    new MetricLogEntry($"Ringo.Api.Services.{nameof(StationService)}.{nameof(GetNowPlaying)}: _player.GetCurrentPlaybackInfo() returned null Item {info}"));
+
                 await Task.Delay(333);
             }
 
@@ -258,16 +308,9 @@ namespace Ringo.Api.Services
                 {
                     ServerFetchTime = DateTimeOffset.FromUnixTimeMilliseconds(info.Timestamp)
                 };
-            }
 
-            _telemetry.TrackEvent(
-                $"Ringo.Api.Services.{nameof(StationService)}.{nameof(GetNowPlaying)}",
-                properties: new Dictionary<string, string>
-                {
-                    { "UserId", user.UserId },
-                    { "UtcNow", finish.ToString() }
-                },
-                metrics: new Dictionary<string, double>
+
+                var metrics = new Dictionary<string, double>
                 {
                     {
                         "RoundTripTimeMS",
@@ -280,12 +323,28 @@ namespace Ringo.Api.Services
                     {
                         "PositionAtEpochSubtractServerTimeMS",
                         np.Offset.PositionAtEpoch.Subtract(TimeSpan.FromMilliseconds(info.ProgressMs ?? 0)).TotalMilliseconds
-                    },
-                    {
-                        "PositionNowSubstractPositionAtEpochMS",
-                        np.Offset.PositionNow().Subtract(np.Offset.PositionAtEpoch).TotalMilliseconds
                     }
+                };
+
+                var props = new Dictionary<string, string>
+                {
+                    { "UserId", user.UserId },
+                    { "UtcNow", finish.ToString() },
+                    { "ServerFetchTime", np.Offset.ServerFetchTime.ToString() },
+                    { "Timestamp", info.Timestamp.ToString() }
+                };
+
+                _telemetry.TrackEvent(
+                    $"Ringo.Api.Services.{nameof(StationService)}.{nameof(GetNowPlaying)}",
+                    properties: props,
+                    metrics: metrics);
+
+                result.Logs.Add(new MetricLogEntry($"Ringo.Api.Services.{nameof(StationService)}.{nameof(GetNowPlaying)}")
+                {
+                    Metrics = metrics,
+                    Properties = props
                 });
+            }
 
             return np;
         }
@@ -306,11 +365,13 @@ namespace Ringo.Api.Services
             }
         }
 
-        private async Task MuteUnmute(Models.User user, NowPlaying np, bool mute)
+        private async Task MuteUnmute(Models.User user, NowPlaying np, bool mute, int volume = 100)
         {
             try
             {
-                await _player.Volume(mute ? 0 : 100, accessToken: await _tokens.GetAccessToken(user.UserId), deviceId: np.Device.Id);
+                await _player.Volume(mute 
+                    ? 0 
+                    : volume, accessToken: await _tokens.GetAccessToken(user.UserId), deviceId: np.Device.Id);
             }
             catch (Exception ex)
             {

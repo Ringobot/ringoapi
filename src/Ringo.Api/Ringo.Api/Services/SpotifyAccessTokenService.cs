@@ -32,21 +32,21 @@ namespace Ringo.Api.Services
             return await RetryHelper.RetryAsync(async () =>
             {
                 // get User Access Tokens from Cache
-                string cachedToken = await _cache.Get<string>(Key(userId));
+                //string cachedToken = await _cache.Get<string>(Key(userId));
 
                 // Return cached token if hit
-                if (cachedToken != null) return cachedToken;
+                //if (cachedToken != null) return cachedToken;
 
                 // Get token from storage
-                var storedToken = await _data.Get(UserAccessToken.CanonicalId(userId), userId);
+                var storedToken = await _data.GetOrDefault(UserAccessToken.CanonicalId(userId), userId);
 
                 if (storedToken == null) return null;
 
-                if (storedToken.AccessTokenHasExpired)
+                if (storedToken.AccessTokenExpired)
                 {
                     // If token has expired, refresh the token
                     var now = DateTimeOffset.UtcNow;
-                    var newToken = await _userAccounts.RefreshUserAccessToken(storedToken.Tokens.RefreshToken);
+                    var newToken = await _userAccounts.RefreshUserAccessToken(storedToken.RefreshToken);
                     storedToken.ResetAccessToken(newToken, now);
 
                     // Save User Access Tokens to storage
@@ -55,12 +55,12 @@ namespace Ringo.Api.Services
 
                 // Store AccessToken (only) in Cache. Set Cache item expiry for when the token is due to expire.
                 // DO NOT cache Refresh Tokens
-                await _cache.Set(
-                    Key(userId), 
-                    storedToken.Tokens.AccessToken, 
-                    storedToken.AccessTokenExpiresBefore.Subtract(DateTimeOffset.UtcNow));
+                //await _cache.Set(
+                //    Key(userId), 
+                //    storedToken.Tokens.AccessToken, 
+                //    storedToken.AccessTokenExpiresBefore.Subtract(DateTimeOffset.UtcNow));
 
-                return storedToken.Tokens.AccessToken;
+                return storedToken.AccessToken;
 
             }, waitMs: 10, logger: _logger);
         }
@@ -72,18 +72,16 @@ namespace Ringo.Api.Services
             await RetryHelper.RetryAsync(async () =>
             {
                 var storedToken = await _data.GetOrDefault(UserAccessToken.CanonicalId(userId), userId);
+                var uat = new UserAccessToken(userId, token);
+                uat.EnforceInvariants();
 
                 if (storedToken == null)
                 {
-                    var uat = new UserAccessToken(userId, token);
-                    uat.EnforceInvariants();
                     await _data.Create(uat);
                 }
                 else
                 {
-                    storedToken.Tokens = token;
-                    storedToken.EnforceInvariants();
-                    await _data.Replace(storedToken, storedToken.ETag);
+                    await _data.Replace(uat, storedToken.ETag);
                 }
             }, waitMs: 10, logger: _logger);
         }
