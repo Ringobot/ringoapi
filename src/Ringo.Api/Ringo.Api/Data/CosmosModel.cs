@@ -14,5 +14,7 @@ namespace Ringo.Api.Data
         public string ETag { get; set; }
 
         public string Type { get; set; }
+
+        public string Version { get; set; }
     }
 }

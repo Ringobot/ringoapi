@@ -22,6 +22,7 @@ namespace Ringo.Api.Models
             State = state;
             CreatedDate = DateTime.UtcNow;
             Type = "UserState";
+            Version = "3";
         }
 
         /// <summary>

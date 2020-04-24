@@ -10,6 +10,7 @@ namespace Ringo.Api.Models
         {
             PK = Id = UserId = userId;
             Type = "User";
+            Version = "3";
         }
 
         public string UserId { get; set; }

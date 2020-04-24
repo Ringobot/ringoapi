@@ -11,6 +11,7 @@ namespace Ringo.Api.Models
             Name = name;
             //SpotifyContextType = contextType;
             Type = "Station";
+            Version = "3";
         }
 
         public User Owner { get; internal set; }

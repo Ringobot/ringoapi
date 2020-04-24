@@ -31,6 +31,11 @@ Sockets ⚡
     RoomChat
     Playhead
 
+## TODO
+
+1. CORS http://localhost:8080/
+1. I think CalculateError() is around the wrong way
+
 ## Links
 
 <https://en.wikipedia.org/wiki/Cristian%27s_algorithm>

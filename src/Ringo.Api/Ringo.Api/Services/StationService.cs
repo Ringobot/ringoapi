@@ -95,21 +95,21 @@ namespace Ringo.Api.Services
                 var ownerNP2 = await GetNowPlaying(station.Owner, result);
                 var error = CalculateError(ownerNP2, await GetNowPlaying(user, result), result);
 
-                if (Math.Abs(error.TotalMilliseconds) > 1000)
+                if (Math.Abs(error.TotalMilliseconds) > 500)
                 {
                     // FOUR
                     // PLAY OFFSET AGAIN
                     await PlayFromOffset(user, station, ownerNP2, result, error: error);
-                    //var ownerNP3 = await GetNowPlaying(station.Owner, result);
-                    //var error2 = CalculateError(ownerNP3, await GetNowPlaying(user, result), result);
+                    var ownerNP3 = await GetNowPlaying(station.Owner, result);
+                    var error2 = CalculateError(ownerNP3, await GetNowPlaying(user, result), result);
 
-                    //if (Math.Abs(error2.TotalMilliseconds) > 500)
-                    //{
-                    //    // FIVE
-                    //    // PLAY OFFSET AGAIN
-                    //    await PlayFromOffset(user, station, ownerNP3, result, error: error);
-                    //    CalculateError(await GetNowPlaying(station.Owner, result), await GetNowPlaying(user, result), result);
-                    //}
+                    if (Math.Abs(error2.TotalMilliseconds) > 500)
+                    {
+                        // FIVE
+                        // PLAY OFFSET AGAIN
+                        await PlayFromOffset(user, station, ownerNP3, result, error: error2);
+                        CalculateError(await GetNowPlaying(station.Owner, result), await GetNowPlaying(user, result), result);
+                    }
                 }
             }
             finally

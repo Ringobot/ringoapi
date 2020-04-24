@@ -13,6 +13,7 @@ namespace Ringo.Api.Models
             PK = UserId = userId;
             Id = CanonicalId(userId);
             Type = "UserAccessToken";
+            Version = "3";
 
             RefreshToken = tokens.RefreshToken;
             ResetAccessToken(tokens, DateTimeOffset.UtcNow);

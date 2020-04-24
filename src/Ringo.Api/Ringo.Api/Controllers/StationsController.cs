@@ -7,7 +7,6 @@ namespace Ringo.Api.Controllers
 {
     [Route("[controller]")]
     [ApiController]
-    [AuthSpotifyBearer]
     public class StationsController : ControllerBase
     {
         private readonly IStationService _stationService;
@@ -20,6 +19,7 @@ namespace Ringo.Api.Controllers
         }
 
         // PUT: station/whkmas/start
+        [AuthSpotifyBearer]
         [HttpPut("{id}/start")]
         public async Task<IActionResult> Start(string id)
         {
@@ -28,6 +28,7 @@ namespace Ringo.Api.Controllers
         }
 
         // PUT: station/whkmas/join
+        [AuthSpotifyBearer]
         [HttpPut("{id}/join")]
         public async Task<IActionResult> Join(string id)
         {
@@ -37,6 +38,7 @@ namespace Ringo.Api.Controllers
 
         // PUT: player/whkmas/owner
 
+        [AuthSpotifyBearer]
         [HttpPut("{id}/owner")]
         public async Task<IActionResult> Owner(string id)
         {
@@ -51,6 +53,5 @@ namespace Ringo.Api.Controllers
                 await _userService.GetUser(CookieHelper.GetUserId(HttpContext)), station);
             return new JsonResult(result) { StatusCode = result.Status };
         }
-
     }
 }

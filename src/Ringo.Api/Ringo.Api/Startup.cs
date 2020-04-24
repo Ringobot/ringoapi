@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,6 +26,19 @@ namespace Ringo.Api
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddCors(options =>
+            {
+                options.AddPolicy(name: "The Corrs",
+                                  builder =>
+                                  {
+                                      builder
+                                      .WithOrigins("http://localhost:8080")
+                                      .AllowCredentials()
+                                      .AllowAnyHeader()
+                                      .AllowAnyMethod();
+                                  });
+            });
+
             services.AddControllers(options => options.Filters.Add<AuthSpotifyBearerFilter>());
             services.AddApplicationInsightsTelemetry();
             services.AddMemoryCache();
@@ -39,7 +51,7 @@ namespace Ringo.Api
             services.AddTransient<IStationService, StationService>();
             services.AddTransient<IAccessTokenService, SpotifyAccessTokenService>();
             services.AddTransient<ICache, RingoMemoryCache>();
-            
+
             services.AddTransient<ICosmosData<Models.User>, CosmosData<Models.User>>();
             services.AddTransient<ICosmosData<UserState>, CosmosData<UserState>>();
             services.AddTransient<ICosmosData<Station>, CosmosData<Station>>();
@@ -53,17 +65,22 @@ namespace Ringo.Api
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
-            if (env.IsDevelopment())
+            //if (env.IsDevelopment())
+            //{
+            //    //app.UseDeveloperExceptionPage();
+            //}
+
+            app.UseExceptionHandler(new ExceptionHandlerOptions
             {
-                app.UseDeveloperExceptionPage();
-            }
+                ExceptionHandler = new JsonExceptionMiddleware(env.IsDevelopment()).Invoke
+            });
 
             app.UseHttpsRedirection();
 
+            // order is important
             app.UseRouting();
-
+            app.UseCors("The Corrs");
             app.UseAuthorization();
-
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
