@@ -8,18 +8,18 @@ using System.Threading.Tasks;
 
 namespace Ringo.Api.Services
 {
-    public class SpotifyAccessTokenService : IAccessTokenService
+    public class AccessTokenService : IAccessTokenService
     {
         private readonly ICache _cache;
         private readonly ICosmosData<UserAccessToken> _data;
         private readonly IUserAccountsService _userAccounts;
-        private readonly ILogger<SpotifyAccessTokenService> _logger;
+        private readonly ILogger<AccessTokenService> _logger;
 
-        public SpotifyAccessTokenService(
+        public AccessTokenService(
             ICache cache,
             ICosmosData<UserAccessToken> data,
             IUserAccountsService userAccounts,
-            ILogger<SpotifyAccessTokenService> logger)
+            ILogger<AccessTokenService> logger)
         {
             _cache = cache;
             _data = data;
@@ -27,7 +27,14 @@ namespace Ringo.Api.Services
             _logger = logger;
         }
 
-        public async Task<string> GetAccessToken(string userId)
+        public async Task<string> GetRingoAccessToken(string userId)
+        {
+            var spotifyToken = await GetSpotifyAccessToken(userId);
+            if (spotifyToken == null) return null;
+            return CryptoHelper.Sha256(spotifyToken);
+        }
+
+        public async Task<string> GetSpotifyAccessToken(string userId)
         {
             return await RetryHelper.RetryAsync(async () =>
             {
@@ -65,9 +72,9 @@ namespace Ringo.Api.Services
             }, waitMs: 10, logger: _logger);
         }
 
-        public async Task<bool> HasAccessToken(string userId) => await GetAccessToken(userId) != null;
+        public async Task<bool> HasRingoAccessToken(string userId) => await GetRingoAccessToken(userId) != null;
 
-        public async Task SetAccessToken(string userId, BearerAccessRefreshToken token)
+        public async Task SetSpotifyAccessToken(string userId, BearerAccessRefreshToken token)
         {
             await RetryHelper.RetryAsync(async () =>
             {

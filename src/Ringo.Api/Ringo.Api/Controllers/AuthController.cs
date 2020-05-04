@@ -4,6 +4,7 @@ using Ringo.Api.Services;
 using SpotifyApi.NetCore;
 using SpotifyApi.NetCore.Authorization;
 using System.Net;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace Ringo.Api.Controllers
@@ -79,14 +80,17 @@ namespace Ringo.Api.Controllers
             await _userStateService.ValidateState(state, userId);
 
             // Save the Token
-            await _tokenService.SetAccessToken(userId, tokens);
+            await _tokenService.SetSpotifyAccessToken(userId, tokens);
+
+            // Get a Ringo Token
+            var ringoToken = await _tokenService.GetRingoAccessToken(userId);
 
             // return an HTML result that posts a message back to the opening window and then closes itself.
             return new ContentResult
             {
                 ContentType = "text/html",
                 StatusCode = (int)HttpStatusCode.OK,
-                Content = $"<html><body><script>window.opener.postMessage(true, \"*\");window.close()</script><p>Spotify Authorization successful. You can close this window now.</p><p>UserId = {userId}.</p><textarea>{tokens.AccessToken}</textarea></body></html>"
+                Content = $"<html><body><script>window.opener.postMessage(\"{ userId },{ ringoToken }\", \"*\");window.close()</script></body></html>"
             };
         }
     }

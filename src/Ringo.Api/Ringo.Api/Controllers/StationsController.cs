@@ -49,8 +49,7 @@ namespace Ringo.Api.Controllers
         [HttpPost()]
         public async Task<IActionResult> Post([FromBody]CreateStation station)
         {
-            var result = await _stationService.CreateStation(
-                await _userService.GetUser(CookieHelper.GetUserId(HttpContext)), station);
+            var result = await _stationService.CreateStation(station);
             return new JsonResult(result) { StatusCode = result.Status };
         }
     }

@@ -4,10 +4,9 @@ namespace Ringo.Api.Models
 {
     public class Station : CosmosModel
     {
-        public Station(string id, string name, User owner)
+        public Station(string id, string name)
         {
             PK = Id = CanonicalId(id);
-            Owner = owner;
             Name = name;
             //SpotifyContextType = contextType;
             Type = "Station";

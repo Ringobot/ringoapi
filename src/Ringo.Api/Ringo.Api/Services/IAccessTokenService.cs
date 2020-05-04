@@ -8,10 +8,12 @@ namespace Ringo.Api.Services
 {
     public interface IAccessTokenService
     {
-        Task<string> GetAccessToken(string userId);
+        Task<string> GetSpotifyAccessToken(string userId);
 
-        Task<bool> HasAccessToken(string userId);
+        Task<bool> HasRingoAccessToken(string userId);
 
-        Task SetAccessToken(string userId, BearerAccessRefreshToken token);
+        Task SetSpotifyAccessToken(string userId, BearerAccessRefreshToken token);
+
+        Task<string> GetRingoAccessToken(string userId);
     }
 }

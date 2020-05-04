@@ -49,7 +49,7 @@ namespace Ringo.Api
             services.AddTransient<IUserStateService, UserStateService>();
             services.AddTransient<IPlayerApi, PlayerApi>();
             services.AddTransient<IStationService, StationService>();
-            services.AddTransient<IAccessTokenService, SpotifyAccessTokenService>();
+            services.AddTransient<IAccessTokenService, AccessTokenService>();
             services.AddTransient<ICache, RingoMemoryCache>();
 
             services.AddTransient<ICosmosData<Models.User>, CosmosData<Models.User>>();

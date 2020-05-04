@@ -130,14 +130,12 @@ namespace Ringo.Api.Services
             throw new NotImplementedException();
         }
 
-        public async Task<StationServiceResult> CreateStation(Models.User user, CreateStation station)
+        public async Task<StationServiceResult> CreateStation(CreateStation station)
         {
-            if (user == null) throw new ArgumentNullException(nameof(user));
-
             try
             {
-                await _data.Create(new Station(station.Id, station.Name, user));
-                return new StationServiceResult { Status = 204, Message = $"Station ({station}) created" };
+                await _data.Create(new Station(station.Id, station.Name));
+                return new StationServiceResult { Status = 200, Message = $"Station ({station}) created" };
             }
             catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
@@ -159,7 +157,7 @@ namespace Ringo.Api.Services
         {
             if (error.Equals(default)) error = TimeSpan.Zero;
 
-            string token = await _tokens.GetAccessToken(user.UserId);
+            string token = await _tokens.GetSpotifyAccessToken(user.UserId);
 
             var positionMs = Convert.ToInt64(ownerNP.Offset.PositionNow().Add(error).TotalMilliseconds);
 
@@ -255,7 +253,7 @@ namespace Ringo.Api.Services
             {
                 // DateTime has enough fidelity for these timings
                 var start = DateTime.UtcNow;
-                CurrentPlaybackContext info = await _player.GetCurrentPlaybackInfo(await _tokens.GetAccessToken(user.UserId));
+                CurrentPlaybackContext info = await _player.GetCurrentPlaybackInfo(await _tokens.GetSpotifyAccessToken(user.UserId));
                 finish = DateTime.UtcNow;
                 var rtt = finish.Subtract(start);
 
@@ -351,7 +349,7 @@ namespace Ringo.Api.Services
 
         private async Task TurnOffShuffleRepeat(Models.User user, NowPlaying np)
         {
-            string token = await _tokens.GetAccessToken(user.UserId);
+            string token = await _tokens.GetSpotifyAccessToken(user.UserId);
 
             // turn off shuffle and repeat
             if (np.ShuffleOn)
@@ -371,7 +369,7 @@ namespace Ringo.Api.Services
             {
                 await _player.Volume(mute 
                     ? 0 
-                    : volume, accessToken: await _tokens.GetAccessToken(user.UserId), deviceId: np.Device.Id);
+                    : volume, accessToken: await _tokens.GetSpotifyAccessToken(user.UserId), deviceId: np.Device.Id);
             }
             catch (Exception ex)
             {

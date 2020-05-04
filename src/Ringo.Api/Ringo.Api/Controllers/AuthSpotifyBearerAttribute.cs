@@ -44,11 +44,10 @@ namespace Ringo.Api.Controllers
                 return;
             }
 
-            // TODO: Not OK to auth using Spotify Bearer Token?
             // if user exists and user has been authorized and token has not expired and token matches bearer => Continue
             var bearer = authHeader[0].Replace("Bearer ", "", StringComparison.OrdinalIgnoreCase);
             string userId = CookieHelper.GetUserId(context.HttpContext);
-            string accessToken = await _tokens.GetAccessToken(userId);
+            string accessToken = await _tokens.GetRingoAccessToken(userId);
             if (
                 accessToken == null || 
                 accessToken != bearer)
