@@ -7,8 +7,10 @@ namespace Ringo.Api.Services
     public class StationServiceResult
     {
         public const string StationHasNoOwner = "StationHasNoOwner";
+        public const string StationHasOwner = "StationHasOwner";
         public const string StationOwnersDeviceNotActive = "StationOwnersDeviceNotActive";
         public const string UserDeviceNotActive = "UserDeviceNotActive";
+        public const string ContextNotSupported = "ContextNotSupported";
 
         public int Status { get; internal set; }
         public string Message { get; internal set; }

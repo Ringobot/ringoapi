@@ -7,32 +7,36 @@ using SpotifyApi.NetCore;
 using SpotifyApi.NetCore.Models;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Ringo.Api.Services
 {
     public class StationService : IStationService
     {
-        private static readonly string[] SupportedSpotifyItemTypes = new[] { "playlist" };
+        private static readonly string[] SupportedSpotifyContexts = new[] { "playlist", "album" };
 
         private readonly ILogger<StationService> _logger;
         private readonly ICosmosData<Station> _data;
         private readonly IPlayerApi _player;
         private readonly IAccessTokenService _tokens;
         private readonly TelemetryClient _telemetry;
+        private readonly IUserService _userService;
 
         public StationService(
             ILogger<StationService> logger,
             ICosmosData<Station> stationData,
             IPlayerApi playerApi,
             IAccessTokenService accessTokenService,
-            TelemetryClient telemetryClient)
+            TelemetryClient telemetryClient,
+            IUserService userService)
         {
             _logger = logger;
             _data = stationData;
             _player = playerApi;
             _tokens = accessTokenService;
             _telemetry = telemetryClient;
+            _userService = userService;
         }
 
         public async Task<StationServiceResult> Start(string userId, string stationId)
@@ -46,6 +50,15 @@ namespace Ringo.Api.Services
             var station = await _data.GetOrDefault(sId, sId);
             if (station == null) return new StationServiceResult { Status = 404, Message = $"Station ({stationId}) not found" };
 
+            // Does station have an owner, and is it this user?
+            if (station.OwnerUserId != null && station.OwnerUserId != userId)
+            {
+                result.Message = $"Station ({stationId}) already has another owner. Change owner before starting.";
+                result.Status = 500;
+                result.Code = StationServiceResult.StationHasOwner;
+                return result;
+            }
+
             var np = await GetNowPlaying(userId, result);
 
             if (!np.IsPlaying)
@@ -56,10 +69,36 @@ namespace Ringo.Api.Services
                 return result;
             }
 
+            if (!ContextSupported(np))
+            {
+                result.Message = $"Spotify playback context ({np.Context?.Type}) is not supported.";
+                result.Status = 500;
+                result.Code = StationServiceResult.ContextNotSupported;
+                return result;
+
+            }
+
+            // set player
+            await _userService.SetPlayer(userId, np);
+
+            // set owner
+            station.OwnerUserId = userId;
+
+            // set startdate
+            station.StartDateTime = DateTimeOffset.UtcNow;
+
+            await _data.Replace(station, station.ETag);
+
             result.Status = 200;
             result.Message = "Playing";
             result.Success = true;
             return result;
+        }
+
+        private bool ContextSupported(NowPlaying np)
+        {
+            if (np.Context == null) return false;
+            return SupportedSpotifyContexts.Any(c => c == np.Context.Type);
         }
 
         public async Task<StationServiceResult> Join(string userId, string stationId)
@@ -74,31 +113,54 @@ namespace Ringo.Api.Services
 
             if (station == null) return new StationServiceResult { Status = 404, Message = $"Station ({stationId}) not found" };
             
-            if (station.Owner == null) return new StationServiceResult
+            if (station.OwnerUserId == null) return new StationServiceResult
             {
                 Status = 500,
                 Message = $"Station ({stationId}) has no owner. Start the station to continue.",
                 Code = StationServiceResult.StationHasNoOwner
             };
 
-            var ownerNP = await GetNowPlaying(station.Owner.Id, result);
+            var ownerNP = await GetNowPlaying(station.OwnerUserId, result);
 
-            if (!ownerNP.IsPlaying) return new StationServiceResult 
-            { 
-                Status = 202, 
-                Message = $"Station ({stationId}) Owner's device is not active",
-                Code = StationServiceResult.StationOwnersDeviceNotActive
-            };
+            if (!ownerNP.IsPlaying)
+            {
+                // set player
+                await _userService.SetPlayer(station.OwnerUserId, ownerNP);
+
+                return new StationServiceResult
+                {
+                    Status = 202,
+                    Message = $"Station ({stationId}) Owner's device is not active",
+                    Code = StationServiceResult.StationOwnersDeviceNotActive
+                };
+            }
+
+            if (!ContextSupported(ownerNP))
+            {
+                // set player
+                await _userService.SetPlayer(station.OwnerUserId, ownerNP);
+
+                result.Message = $"Spotify playback context ({ownerNP.Context?.Type}) is not supported.";
+                result.Status = 500;
+                result.Code = StationServiceResult.ContextNotSupported;
+                return result;
+            }
 
             // ONE
             var np1 = await GetNowPlaying(userId, result);
 
-            if (!np1.IsPlaying) return new StationServiceResult 
-            { 
-                Status = 202, 
-                Message = "User's device is not active",
-                Code = StationServiceResult.UserDeviceNotActive
-            };
+            if (!np1.IsPlaying)
+            {
+                // set player
+                await _userService.SetPlayer(userId, np1);
+
+                return new StationServiceResult
+                {
+                    Status = 202,
+                    Message = "User's device is not active",
+                    Code = StationServiceResult.UserDeviceNotActive
+                };
+            }
 
             // SYNC user to owner
             await TurnOffShuffleRepeat(userId, np1);
@@ -113,7 +175,7 @@ namespace Ringo.Api.Services
 
                 // THREE
                 //CALCULATE ERROR, if greater than 250ms, DO FOUR
-                var ownerNP2 = await GetNowPlaying(station.Owner.Id, result);
+                var ownerNP2 = await GetNowPlaying(station.OwnerUserId, result);
                 var error = CalculateError(ownerNP2, await GetNowPlaying(userId, result), result);
 
                 if (Math.Abs(error.TotalMilliseconds) > 500)
@@ -121,7 +183,7 @@ namespace Ringo.Api.Services
                     // FOUR
                     // PLAY OFFSET AGAIN
                     await PlayFromOffset(userId, station, ownerNP2, result, error: error);
-                    var ownerNP3 = await GetNowPlaying(station.Owner.Id, result);
+                    var ownerNP3 = await GetNowPlaying(station.OwnerUserId, result);
                     var error2 = CalculateError(ownerNP3, await GetNowPlaying(userId, result), result);
 
                     if (Math.Abs(error2.TotalMilliseconds) > 500)
@@ -129,7 +191,7 @@ namespace Ringo.Api.Services
                         // FIVE
                         // PLAY OFFSET AGAIN
                         await PlayFromOffset(userId, station, ownerNP3, result, error: error2);
-                        CalculateError(await GetNowPlaying(station.Owner.Id, result), await GetNowPlaying(userId, result), result);
+                        CalculateError(await GetNowPlaying(station.OwnerUserId, result), await GetNowPlaying(userId, result), result);
                     }
                 }
             }
@@ -139,6 +201,12 @@ namespace Ringo.Api.Services
                 await MuteUnmute(userId, np1, false, volume: np1.Device.VolumePercent ?? 100);
             }
 
+            // set Owner.Player
+            await _userService.SetPlayer(station.OwnerUserId, ownerNP);
+
+            // set User.Player
+            await _userService.SetPlayer(userId, np1);
+
             result.Status = 200;
             result.Message = "Playing";
             return result;
@@ -147,6 +215,29 @@ namespace Ringo.Api.Services
         public Task<StationServiceResult> ChangeOwner(string userId, string stationId)
         {
             if (string.IsNullOrEmpty(userId)) throw new ArgumentNullException(nameof(userId));
+
+            //// Does station have an owner?
+            //if (station.Owner != null)
+            //{
+            //    // If the station was started/updated within the past (hour) then the owner can't be 
+            //    // changed by starting the station.
+            //    if (station.StartedDateTime > DateTimeOffset.UtcNow.AddHours(-1))
+            //    {
+
+            //    }
+
+            //    // Get owner now playing
+            //    var ownerNP = await GetNowPlaying(station.Owner.Id, result);
+
+
+            //    // Is that owner currently playing?
+            //    if (ownerNP.IsPlaying)
+
+            //    // Is the context the same
+
+
+            //}
+
 
             throw new NotImplementedException();
         }

@@ -1,4 +1,5 @@
 ﻿using Ringo.Api.Data;
+using System;
 
 namespace Ringo.Api.Models
 {
@@ -8,14 +9,15 @@ namespace Ringo.Api.Models
         {
             PK = Id = CanonicalId(id);
             Name = name;
-            //SpotifyContextType = contextType;
             Type = "Station";
             Version = "3";
         }
 
-        public User Owner { get; internal set; }
-        //public string SpotifyContextType { get; internal set; }
+        public string OwnerUserId { get; set; }
+
         public string Name { get; set; }
+
+        public DateTimeOffset StartDateTime { get; internal set; }
 
         internal static string CanonicalId(string id) => id.ToLower();
     }

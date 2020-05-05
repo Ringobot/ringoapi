@@ -14,5 +14,7 @@ namespace Ringo.Api.Models
         }
 
         public string UserId { get; set; }
+
+        public Player Player { get; set; }
     }
 }
