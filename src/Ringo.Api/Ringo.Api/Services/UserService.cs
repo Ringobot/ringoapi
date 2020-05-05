@@ -1,8 +1,5 @@
 ﻿using Ringo.Api.Data;
 using Ringo.Api.Models;
-using SpotifyApi.NetCore.Authorization;
-using System;
-using System.Security.Claims;
 using System.Threading.Tasks;
 
 namespace Ringo.Api.Services
@@ -19,6 +16,13 @@ namespace Ringo.Api.Services
         public async Task<User> CreateUser(string userId)
         {
             return await _userData.Create(new User(userId));
+        }
+
+        public async Task<User> CreateUserIfNotExists(string userId)
+        {
+            var user = await GetUser(userId);
+            if (user != null) return user;
+            return await CreateUser(userId);
         }
 
         public async Task<User> GetUser(string userId)

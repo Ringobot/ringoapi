@@ -23,7 +23,7 @@ namespace Ringo.Api.Controllers
         [HttpPut("{id}/start")]
         public async Task<IActionResult> Start(string id)
         {
-            var result = await _stationService.Start(await _userService.GetUser(CookieHelper.GetUserId(HttpContext)), id);
+            var result = await _stationService.Start(CookieHelper.GetUserId(HttpContext), id);
             return new JsonResult(result) { StatusCode = result.Status };
         }
 
@@ -32,7 +32,7 @@ namespace Ringo.Api.Controllers
         [HttpPut("{id}/join")]
         public async Task<IActionResult> Join(string id)
         {
-            var result = await _stationService.Join(await _userService.GetUser(CookieHelper.GetUserId(HttpContext)), id);
+            var result = await _stationService.Join(CookieHelper.GetUserId(HttpContext), id);
             return new JsonResult(result) { StatusCode = result.Status };
         }
 
@@ -42,7 +42,7 @@ namespace Ringo.Api.Controllers
         [HttpPut("{id}/owner")]
         public async Task<IActionResult> Owner(string id)
         {
-            var result = await _stationService.ChangeOwner(await _userService.GetUser(CookieHelper.GetUserId(HttpContext)), id);
+            var result = await _stationService.ChangeOwner(CookieHelper.GetUserId(HttpContext), id);
             return new JsonResult(result) { StatusCode = result.Status };
         }
 

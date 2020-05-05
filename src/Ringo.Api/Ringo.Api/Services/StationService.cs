@@ -35,21 +35,24 @@ namespace Ringo.Api.Services
             _telemetry = telemetryClient;
         }
 
-        public async Task<StationServiceResult> Start(Models.User user, string stationId)
+        public async Task<StationServiceResult> Start(string userId, string stationId)
         {
-            if (user == null) throw new ArgumentNullException(nameof(user));
+            if (string.IsNullOrEmpty(userId)) throw new ArgumentNullException(nameof(userId));
+            if (string.IsNullOrEmpty(stationId)) throw new ArgumentNullException(nameof(stationId));
+
             var result = new StationServiceResult { Logs = new List<MetricLogEntry>() };
 
             string sId = Station.CanonicalId(stationId);
             var station = await _data.GetOrDefault(sId, sId);
             if (station == null) return new StationServiceResult { Status = 404, Message = $"Station ({stationId}) not found" };
 
-            var np = await GetNowPlaying(user, result);
+            var np = await GetNowPlaying(userId, result);
 
             if (!np.IsPlaying)
             {
-                result.Message = "Waiting for active device";
+                result.Message = "User's device is not active";
                 result.Status = 202;
+                result.Code = StationServiceResult.UserDeviceNotActive;
                 return result;
             }
 
@@ -59,9 +62,10 @@ namespace Ringo.Api.Services
             return result;
         }
 
-        public async Task<StationServiceResult> Join(Models.User user, string stationId)
+        public async Task<StationServiceResult> Join(string userId, string stationId)
         {
-            if (user == null) throw new ArgumentNullException(nameof(user));
+            if (string.IsNullOrEmpty(userId)) throw new ArgumentNullException(nameof(userId));
+            if (string.IsNullOrEmpty(stationId)) throw new ArgumentNullException(nameof(stationId));
 
             var result = new StationServiceResult { Logs = new List<MetricLogEntry>() };
 
@@ -69,53 +73,70 @@ namespace Ringo.Api.Services
             var station = await _data.GetOrDefault(sId, sId);
 
             if (station == null) return new StationServiceResult { Status = 404, Message = $"Station ({stationId}) not found" };
+            
+            if (station.Owner == null) return new StationServiceResult
+            {
+                Status = 500,
+                Message = $"Station ({stationId}) has no owner. Start the station to continue.",
+                Code = StationServiceResult.StationHasNoOwner
+            };
 
-            var ownerNP = await GetNowPlaying(station.Owner, result);
+            var ownerNP = await GetNowPlaying(station.Owner.Id, result);
 
-            if (!ownerNP.IsPlaying) return new StationServiceResult { Status = 403, Message = "Station Owner's device is not active" };
+            if (!ownerNP.IsPlaying) return new StationServiceResult 
+            { 
+                Status = 202, 
+                Message = $"Station ({stationId}) Owner's device is not active",
+                Code = StationServiceResult.StationOwnersDeviceNotActive
+            };
 
             // ONE
-            var np1 = await GetNowPlaying(user, result);
+            var np1 = await GetNowPlaying(userId, result);
 
-            if (!np1.IsPlaying) return new StationServiceResult { Status = 201, Message = "Waiting for active device" };
+            if (!np1.IsPlaying) return new StationServiceResult 
+            { 
+                Status = 202, 
+                Message = "User's device is not active",
+                Code = StationServiceResult.UserDeviceNotActive
+            };
 
             // SYNC user to owner
-            await TurnOffShuffleRepeat(user, np1);
+            await TurnOffShuffleRepeat(userId, np1);
 
             try
             {
                 // mute joining player
-                await MuteUnmute(user, np1, true);
+                await MuteUnmute(userId, np1, true);
 
                 // TWO
-                await PlayFromOffset(user, station, ownerNP, result);
+                await PlayFromOffset(userId, station, ownerNP, result);
 
                 // THREE
                 //CALCULATE ERROR, if greater than 250ms, DO FOUR
-                var ownerNP2 = await GetNowPlaying(station.Owner, result);
-                var error = CalculateError(ownerNP2, await GetNowPlaying(user, result), result);
+                var ownerNP2 = await GetNowPlaying(station.Owner.Id, result);
+                var error = CalculateError(ownerNP2, await GetNowPlaying(userId, result), result);
 
                 if (Math.Abs(error.TotalMilliseconds) > 500)
                 {
                     // FOUR
                     // PLAY OFFSET AGAIN
-                    await PlayFromOffset(user, station, ownerNP2, result, error: error);
-                    var ownerNP3 = await GetNowPlaying(station.Owner, result);
-                    var error2 = CalculateError(ownerNP3, await GetNowPlaying(user, result), result);
+                    await PlayFromOffset(userId, station, ownerNP2, result, error: error);
+                    var ownerNP3 = await GetNowPlaying(station.Owner.Id, result);
+                    var error2 = CalculateError(ownerNP3, await GetNowPlaying(userId, result), result);
 
                     if (Math.Abs(error2.TotalMilliseconds) > 500)
                     {
                         // FIVE
                         // PLAY OFFSET AGAIN
-                        await PlayFromOffset(user, station, ownerNP3, result, error: error2);
-                        CalculateError(await GetNowPlaying(station.Owner, result), await GetNowPlaying(user, result), result);
+                        await PlayFromOffset(userId, station, ownerNP3, result, error: error2);
+                        CalculateError(await GetNowPlaying(station.Owner.Id, result), await GetNowPlaying(userId, result), result);
                     }
                 }
             }
             finally
             {
                 // unmute joining player
-                await MuteUnmute(user, np1, false, volume: np1.Device.VolumePercent ?? 100);
+                await MuteUnmute(userId, np1, false, volume: np1.Device.VolumePercent ?? 100);
             }
 
             result.Status = 200;
@@ -123,9 +144,9 @@ namespace Ringo.Api.Services
             return result;
         }
 
-        public Task<StationServiceResult> ChangeOwner(Models.User user, string stationId)
+        public Task<StationServiceResult> ChangeOwner(string userId, string stationId)
         {
-            if (user == null) throw new ArgumentNullException(nameof(user));
+            if (string.IsNullOrEmpty(userId)) throw new ArgumentNullException(nameof(userId));
 
             throw new NotImplementedException();
         }
@@ -149,7 +170,7 @@ namespace Ringo.Api.Services
         }
 
         private async Task PlayFromOffset(
-            Models.User user,
+            string userId,
             Station station,
             NowPlaying ownerNP,
             StationServiceResult result,
@@ -157,7 +178,7 @@ namespace Ringo.Api.Services
         {
             if (error.Equals(default)) error = TimeSpan.Zero;
 
-            string token = await _tokens.GetSpotifyAccessToken(user.UserId);
+            string token = await _tokens.GetSpotifyAccessToken(userId);
 
             var positionMs = Convert.ToInt64(ownerNP.Offset.PositionNow().Add(error).TotalMilliseconds);
 
@@ -192,7 +213,7 @@ namespace Ringo.Api.Services
 
             var props = new Dictionary<string, string>
                 {
-                    { "UserId", user.UserId },
+                    { "UserId", userId },
                     { "UtcNow", DateTimeOffset.UtcNow.ToString() }
                 };
 
@@ -241,7 +262,7 @@ namespace Ringo.Api.Services
             return error;
         }
 
-        private async Task<NowPlaying> GetNowPlaying(Models.User user, StationServiceResult result)
+        private async Task<NowPlaying> GetNowPlaying(string userId, StationServiceResult result)
         {
             //var info = await RetryHelper.RetryAsync(
             //        () => _player.GetCurrentPlaybackInfo(user.Token),
@@ -253,7 +274,7 @@ namespace Ringo.Api.Services
             {
                 // DateTime has enough fidelity for these timings
                 var start = DateTime.UtcNow;
-                CurrentPlaybackContext info = await _player.GetCurrentPlaybackInfo(await _tokens.GetSpotifyAccessToken(user.UserId));
+                CurrentPlaybackContext info = await _player.GetCurrentPlaybackInfo(await _tokens.GetSpotifyAccessToken(userId));
                 finish = DateTime.UtcNow;
                 var rtt = finish.Subtract(start);
 
@@ -326,7 +347,7 @@ namespace Ringo.Api.Services
 
                 var props = new Dictionary<string, string>
                 {
-                    { "UserId", user.UserId },
+                    { "UserId", userId },
                     { "UtcNow", finish.ToString() },
                     { "ServerFetchTime", np.Offset.ServerFetchTime.ToString() },
                     { "Timestamp", info.Timestamp.ToString() }
@@ -347,9 +368,9 @@ namespace Ringo.Api.Services
             return np;
         }
 
-        private async Task TurnOffShuffleRepeat(Models.User user, NowPlaying np)
+        private async Task TurnOffShuffleRepeat(string userId, NowPlaying np)
         {
-            string token = await _tokens.GetSpotifyAccessToken(user.UserId);
+            string token = await _tokens.GetSpotifyAccessToken(userId);
 
             // turn off shuffle and repeat
             if (np.ShuffleOn)
@@ -363,13 +384,13 @@ namespace Ringo.Api.Services
             }
         }
 
-        private async Task MuteUnmute(Models.User user, NowPlaying np, bool mute, int volume = 100)
+        private async Task MuteUnmute(string userId, NowPlaying np, bool mute, int volume = 100)
         {
             try
             {
-                await _player.Volume(mute 
-                    ? 0 
-                    : volume, accessToken: await _tokens.GetSpotifyAccessToken(user.UserId), deviceId: np.Device.Id);
+                await _player.Volume(mute
+                    ? 0
+                    : volume, accessToken: await _tokens.GetSpotifyAccessToken(userId), deviceId: np.Device.Id);
             }
             catch (Exception ex)
             {

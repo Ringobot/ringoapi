@@ -5,9 +5,9 @@ namespace Ringo.Api.Services
 {
     public interface IStationService
     {
-        Task<StationServiceResult> Start(User user, string stationId);
-        Task<StationServiceResult> Join(User user, string stationId);
-        Task<StationServiceResult> ChangeOwner(User user, string stationId);
+        Task<StationServiceResult> Start(string userId, string stationId);
+        Task<StationServiceResult> Join(string userId, string stationId);
+        Task<StationServiceResult> ChangeOwner(string userId, string stationId);
         Task<StationServiceResult> CreateStation(CreateStation station);
     }
 }

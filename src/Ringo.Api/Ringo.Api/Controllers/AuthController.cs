@@ -16,15 +16,18 @@ namespace Ringo.Api.Controllers
         private readonly IUserAccountsService _userAccounts;
         private readonly IAccessTokenService _tokenService;
         private readonly IUserStateService _userStateService;
+        private readonly IUserService _userService;
 
         public AuthController(
             IUserAccountsService userAccounts,
             IAccessTokenService tokenService,
-            IUserStateService userStateService)
+            IUserStateService userStateService,
+            IUserService userService)
         {
             _userAccounts = userAccounts;
             _tokenService = tokenService;
             _userStateService = userStateService;
+            _userService = userService;
         }
 
         [HttpPost("[action]")]
@@ -81,6 +84,11 @@ namespace Ringo.Api.Controllers
 
             // Save the Token
             await _tokenService.SetSpotifyAccessToken(userId, tokens);
+
+            //TODO: Get the Spotify Username
+
+            // Create a User if not exists
+            await _userService.CreateUserIfNotExists(userId);
 
             // Get a Ringo Token
             var ringoToken = await _tokenService.GetRingoAccessToken(userId);

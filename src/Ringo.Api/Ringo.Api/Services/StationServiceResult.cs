@@ -6,12 +6,19 @@ namespace Ringo.Api.Services
 {
     public class StationServiceResult
     {
+        public const string StationHasNoOwner = "StationHasNoOwner";
+        public const string StationOwnersDeviceNotActive = "StationOwnersDeviceNotActive";
+        public const string UserDeviceNotActive = "UserDeviceNotActive";
+
         public int Status { get; internal set; }
         public string Message { get; internal set; }
         public bool Success { get; set; }
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public List<MetricLogEntry> Logs { get; set; }
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string Code { get; set; }
     }
 
     public class MetricLogEntry
