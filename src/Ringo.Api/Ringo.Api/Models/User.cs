@@ -8,13 +8,11 @@ namespace Ringo.Api.Models
 
         public User(string userId)
         {
-            PK = Id = UserId = userId;
+            PK = Id = UserId = CanonicalId(userId);
             Type = "User";
             Version = "3";
         }
 
         public string UserId { get; set; }
-
-        public Player Player { get; set; }
     }
 }

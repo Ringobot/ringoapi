@@ -47,15 +47,17 @@ namespace Ringo.Api
             services.AddTransient<IUserService, UserService>();
             services.AddTransient<IUserAccountsService, UserAccountsService>();
             services.AddTransient<IUserStateService, UserStateService>();
-            services.AddTransient<IPlayerApi, PlayerApi>();
             services.AddTransient<IStationService, StationService>();
+            services.AddTransient<IPlayerService, PlayerService>();
             services.AddTransient<IAccessTokenService, AccessTokenService>();
             services.AddTransient<ICache, RingoMemoryCache>();
+            services.AddTransient<IPlayerApi, PlayerApi>();
 
             services.AddTransient<ICosmosData<Models.User>, CosmosData<Models.User>>();
             services.AddTransient<ICosmosData<UserState>, CosmosData<UserState>>();
             services.AddTransient<ICosmosData<Station>, CosmosData<Station>>();
-            services.AddTransient<ICosmosData<UserAccessToken>, CosmosData<UserAccessToken>>();
+            services.AddTransient<ICosmosData<UserAccessRefreshToken>, CosmosData<UserAccessRefreshToken>>();
+            services.AddTransient<ICosmosData<Player>, CosmosData<Player>>();
 
             // Singletons
             services.AddSingleton(new CosmosClient(Configuration["CosmosConnectionString"]));

@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Ringo.Api.Services;
-using System;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -37,20 +36,21 @@ namespace Ringo.Api.Controllers
             }
 
             // if no auth header => Forbidden
-            var authHeader = context.HttpContext.Request.Headers["Authorization"];
-            if (!authHeader.Any())
+            string bearer = HttpHelper.GetBearerToken(context.HttpContext);
+            if (bearer == null)
             {
                 context.Result = new StatusCodeResult(403);
                 return;
             }
 
             // if user exists and user has been authorized and token has not expired and token matches bearer => Continue
-            var bearer = authHeader[0].Replace("Bearer ", "", StringComparison.OrdinalIgnoreCase);
-            string userId = CookieHelper.GetUserId(context.HttpContext);
-            string accessToken = await _tokens.GetRingoAccessToken(userId);
+            string userId = HttpHelper.GetUserId(context.HttpContext);
+            var ringoToken = await _tokens.GetRingoAccessToken(userId);
+
             if (
-                accessToken == null || 
-                accessToken != bearer)
+                ringoToken == null ||
+                ringoToken.AccessTokenExpired ||
+                ringoToken.AccessToken != bearer)
             {
                 context.Result = new StatusCodeResult(403);
                 return;

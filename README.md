@@ -37,6 +37,7 @@ Sockets ⚡
 1. I think CalculateError() is around the wrong way
 1. Cookie UserId should not be User.UserId. 1:Many relationship between User and cookie.
 1. Spotify User Profile
+1. Timer function, clean up Stations that have not been modified since 1 hour
 
 ## Links
 

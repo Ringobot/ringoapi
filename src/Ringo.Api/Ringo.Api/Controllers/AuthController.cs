@@ -4,6 +4,7 @@ using Ringo.Api.Services;
 using SpotifyApi.NetCore;
 using SpotifyApi.NetCore.Authorization;
 using System.Net;
+using System.Security;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -32,9 +33,9 @@ namespace Ringo.Api.Controllers
 
         [HttpPost("[action]")]
         [Route("auth/authorize")]
-        public async Task<Models.AuthorizationResult> Authorize()
+        public async Task<AuthorizationResult> Authorize()
         {
-            string userId = CookieHelper.GetUserId(HttpContext);
+            string userId = HttpHelper.GetUserId(HttpContext);
 
             //if (await _tokenService.HasAccessToken(userId)) return new AuthorizationResult { UserId = userId, Authorized = true };
 
@@ -71,7 +72,7 @@ namespace Ringo.Api.Controllers
                 };
             }
 
-            string userId = CookieHelper.GetUserId(HttpContext);
+            string userId = HttpHelper.GetUserId(HttpContext);
 
             // if Spotify returned an error, throw it
             if (error != null) throw new SpotifyApiErrorException(error);
@@ -100,6 +101,46 @@ namespace Ringo.Api.Controllers
                 StatusCode = (int)HttpStatusCode.OK,
                 Content = $"<html><body><script>window.opener.postMessage(\"{ userId },{ ringoToken }\", \"*\");window.close()</script></body></html>"
             };
+        }
+
+        [HttpPut("[action]")]
+        [Route("auth/refresh")]
+        public async Task<AuthorizationResult> Refresh()
+        {
+            var userId = HttpHelper.GetUserId(HttpContext);
+            var bearer = HttpHelper.GetBearerToken(HttpContext);
+
+            if (bearer == null)
+            {
+                return new AuthorizationResult
+                {
+                    UserId = userId,
+                    Authorized = false
+                };
+            }
+
+            try
+            {
+                var token = await _tokenService.RefreshRingoAccessToken(
+                    userId,
+                    bearer);
+
+                return new AuthorizationResult
+                {
+                    UserId = userId,
+                    Authorized = true,
+                    BearerToken = token.AccessToken,
+                    Expires = token.Expires
+                };
+            }
+            catch (SecurityException)
+            {
+                return new AuthorizationResult
+                {
+                    UserId = userId,
+                    Authorized = false
+                };
+            }
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using System;
 
 namespace Ringo.Api.Models
 {
@@ -9,5 +10,11 @@ namespace Ringo.Api.Models
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public string AuthorizationUrl { get; set; }
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string BearerToken { get; set; }
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public DateTimeOffset? Expires { get; set; }
     }
 }

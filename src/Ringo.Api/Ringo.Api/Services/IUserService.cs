@@ -10,6 +10,5 @@ namespace Ringo.Api.Services
         Task<User> GetUser(string userId);
         Task<User> CreateUser(string userId);
         Task<User> CreateUserIfNotExists(string userId);
-        Task<User> SetPlayer(string userId, NowPlaying np);
     }
 }

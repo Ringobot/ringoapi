@@ -1,9 +1,10 @@
 ﻿using Microsoft.AspNetCore.Http;
 using System;
+using System.Linq;
 
 namespace Ringo.Api.Controllers
 {
-    internal class CookieHelper
+    internal class HttpHelper
     {
         /// Get's the userId cookie and sets one if it does not exist
         internal static string GetUserId(HttpContext context)
@@ -18,6 +19,16 @@ namespace Ringo.Api.Controllers
             }
 
             return id;
+        }
+
+        internal static string GetBearerToken(HttpContext context)
+        {
+            var headers = context.Request.Headers["Authorization"];
+            if (!headers.Any()) return null;
+            string bearer = headers[0].Replace("Bearer ", "", StringComparison.OrdinalIgnoreCase);
+            if (string.IsNullOrEmpty(bearer)) return null;
+            if (bearer.Length != 32) return null;
+            return bearer;
         }
     }
 }

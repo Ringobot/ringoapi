@@ -8,22 +8,28 @@ namespace Ringo.Api.Models
     {
         public UserAccessToken() { }
 
-        public UserAccessToken(string userId, BearerAccessRefreshToken tokens)
+        protected UserAccessToken(string userId, BearerAccessRefreshToken tokens)
         {
             PK = UserId = userId;
             Id = CanonicalId(userId);
             Type = "UserAccessToken";
             Version = "3";
-
-            RefreshToken = tokens.RefreshToken;
             ResetAccessToken(tokens, DateTimeOffset.UtcNow);
+        }
+
+        internal UserAccessToken(UserAccessRefreshToken refreshToken)
+        {
+            // copy all properties except Refresh Token
+            UserId = refreshToken.UserId;
+            AccessToken = refreshToken.AccessToken;
+            ExpiresIn = refreshToken.ExpiresIn;
+            Scope = refreshToken.Scope;
+            Expires = refreshToken.Expires;
         }
 
         public string UserId { get; set; }
 
         internal bool AccessTokenExpired => Expires <= DateTimeOffset.UtcNow;
-
-        public string RefreshToken { get; set; }
 
         public string AccessToken { get; set; }
 
@@ -42,7 +48,7 @@ namespace Ringo.Api.Models
             Expires = newToken.Expires ?? issuedDateTime.AddSeconds(ExpiresIn);
         }
 
-        internal static string CanonicalId(string id) => $"T:{id}";
+        internal static new string CanonicalId(string id) => $"T:{id}";
 
         internal void EnforceInvariants()
         {

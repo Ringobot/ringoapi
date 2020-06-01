@@ -5,10 +5,11 @@ namespace Ringo.Api.Models
 {
     public class Station : CosmosModel
     {
-        public Station(string id, string name)
+        public Station(string id, string name, string ownerUserId)
         {
             PK = Id = CanonicalId(id);
             Name = name;
+            OwnerUserId = ownerUserId;
             Type = "Station";
             Version = "3";
         }
@@ -19,6 +20,6 @@ namespace Ringo.Api.Models
 
         public DateTimeOffset StartDateTime { get; internal set; }
 
-        internal static string CanonicalId(string id) => id.ToLower();
+        internal static new string CanonicalId(string stationId) => CosmosModel.CanonicalId(stationId);
     }
 }

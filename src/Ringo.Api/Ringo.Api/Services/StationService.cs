@@ -21,7 +21,8 @@ namespace Ringo.Api.Services
         private readonly IPlayerApi _player;
         private readonly IAccessTokenService _tokens;
         private readonly TelemetryClient _telemetry;
-        private readonly IUserService _userService;
+        private readonly IPlayerService _playerService;
+
 
         public StationService(
             ILogger<StationService> logger,
@@ -29,14 +30,14 @@ namespace Ringo.Api.Services
             IPlayerApi playerApi,
             IAccessTokenService accessTokenService,
             TelemetryClient telemetryClient,
-            IUserService userService)
+            IPlayerService playerService)
         {
             _logger = logger;
             _data = stationData;
             _player = playerApi;
             _tokens = accessTokenService;
             _telemetry = telemetryClient;
-            _userService = userService;
+            _playerService = playerService;
         }
 
         public async Task<StationServiceResult> Start(string userId, string stationId)
@@ -79,7 +80,7 @@ namespace Ringo.Api.Services
             }
 
             // set player
-            await _userService.SetPlayer(userId, np);
+            await _playerService.SetPlayer(stationId, userId, np);
 
             // set owner
             station.OwnerUserId = userId;
@@ -125,7 +126,7 @@ namespace Ringo.Api.Services
             if (!ownerNP.IsPlaying)
             {
                 // set player
-                await _userService.SetPlayer(station.OwnerUserId, ownerNP);
+                await _playerService.SetPlayer(stationId, station.OwnerUserId, ownerNP);
 
                 return new StationServiceResult
                 {
@@ -138,7 +139,7 @@ namespace Ringo.Api.Services
             if (!ContextSupported(ownerNP))
             {
                 // set player
-                await _userService.SetPlayer(station.OwnerUserId, ownerNP);
+                await _playerService.SetPlayer(stationId, station.OwnerUserId, ownerNP);
 
                 result.Message = $"Spotify playback context ({ownerNP.Context?.Type}) is not supported.";
                 result.Status = 500;
@@ -152,7 +153,7 @@ namespace Ringo.Api.Services
             if (!np1.IsPlaying)
             {
                 // set player
-                await _userService.SetPlayer(userId, np1);
+                await _playerService.SetPlayer(stationId, userId, np1);
 
                 return new StationServiceResult
                 {
@@ -202,10 +203,10 @@ namespace Ringo.Api.Services
             }
 
             // set Owner.Player
-            await _userService.SetPlayer(station.OwnerUserId, ownerNP);
+            await _playerService.SetPlayer(stationId, station.OwnerUserId, ownerNP);
 
             // set User.Player
-            await _userService.SetPlayer(userId, np1);
+            await _playerService.SetPlayer(stationId, userId, np1);
 
             result.Status = 200;
             result.Message = "Playing";
@@ -242,12 +243,12 @@ namespace Ringo.Api.Services
             throw new NotImplementedException();
         }
 
-        public async Task<StationServiceResult> CreateStation(CreateStation station)
+        public async Task<StationServiceResult> CreateStation(string userId, CreateStation station)
         {
             try
             {
-                await _data.Create(new Station(station.Id, station.Name));
-                return new StationServiceResult { Status = 200, Message = $"Station ({station}) created" };
+                await _data.Create(new Station(station.Id, station.Name, userId));
+                return new StationServiceResult { Status = 200, Message = $"Station ({station.Id}) created" };
             }
             catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
@@ -269,7 +270,7 @@ namespace Ringo.Api.Services
         {
             if (error.Equals(default)) error = TimeSpan.Zero;
 
-            string token = await _tokens.GetSpotifyAccessToken(userId);
+            string token = (await _tokens.GetSpotifyAccessToken(userId, refreshIfExpired: true)).AccessToken;
 
             var positionMs = Convert.ToInt64(ownerNP.Offset.PositionNow().Add(error).TotalMilliseconds);
 
@@ -358,14 +359,14 @@ namespace Ringo.Api.Services
             //var info = await RetryHelper.RetryAsync(
             //        () => _player.GetCurrentPlaybackInfo(user.Token),
             //        logger: _logger);
-
+            string token = (await _tokens.GetSpotifyAccessToken(userId, refreshIfExpired: true)).AccessToken;
             var finish = DateTimeOffset.MaxValue;
 
             var getInfo = new Func<Task<(CurrentPlaybackContext info, TimeSpan rtt)>>(async () =>
             {
                 // DateTime has enough fidelity for these timings
                 var start = DateTime.UtcNow;
-                CurrentPlaybackContext info = await _player.GetCurrentPlaybackInfo(await _tokens.GetSpotifyAccessToken(userId));
+                CurrentPlaybackContext info = await _player.GetCurrentPlaybackInfo(token);
                 finish = DateTime.UtcNow;
                 var rtt = finish.Subtract(start);
 
@@ -461,7 +462,7 @@ namespace Ringo.Api.Services
 
         private async Task TurnOffShuffleRepeat(string userId, NowPlaying np)
         {
-            string token = await _tokens.GetSpotifyAccessToken(userId);
+            string token = (await _tokens.GetSpotifyAccessToken(userId, refreshIfExpired: true)).AccessToken;
 
             // turn off shuffle and repeat
             if (np.ShuffleOn)
@@ -479,9 +480,11 @@ namespace Ringo.Api.Services
         {
             try
             {
+                string token = (await _tokens.GetSpotifyAccessToken(userId, refreshIfExpired: true)).AccessToken;
+
                 await _player.Volume(mute
                     ? 0
-                    : volume, accessToken: await _tokens.GetSpotifyAccessToken(userId), deviceId: np.Device.Id);
+                    : volume, accessToken: token, deviceId: np.Device.Id);
             }
             catch (Exception ex)
             {

@@ -30,30 +30,5 @@ namespace Ringo.Api.Services
         {
             return await _userData.GetOrDefault(userId, userId);
         }
-
-        public async Task<User> SetPlayer(string userId, NowPlaying np)
-        {
-            var user = await GetUser(userId);
-
-            user.Player = new Player
-            {
-                Artist = np.Track?.Artists[0]?.Name,
-                Track = np.Track?.Name,
-                IsPlaying = np.IsPlaying
-            };
-
-            if (np.Context != null)
-            {
-                user.Player.Context = new Context { Type = np.Context?.Type, Uri = np.Context?.Uri };
-            }
-
-            if (np.Offset != null)
-            {
-                user.Player.Epoch = np.Offset.Epoch;
-                user.Player.PositionMsAtEpoch = Convert.ToInt32(np.Offset.PositionAtEpoch.TotalMilliseconds);
-            }
-
-            return await _userData.Replace(user, user.ETag);
-        }
     }
 }

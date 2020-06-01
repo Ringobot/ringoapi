@@ -2,7 +2,7 @@
 
 namespace Ringo.Api.Data
 {
-    public class CosmosModel : ICosmosModel
+    public abstract class CosmosModel : ICosmosModel
     {
         [JsonProperty("id")]
         public string Id { get; set; }
@@ -16,5 +16,9 @@ namespace Ringo.Api.Data
         public string Type { get; set; }
 
         public string Version { get; set; }
+
+        protected static string CanonicalId(string id) => id.ToLower();
+
+        protected static string CanonicalPK(string id) => CanonicalId(id);
     }
 }
